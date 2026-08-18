@@ -251,6 +251,30 @@ main{padding:24px var(--screen-pad) 0}
 .preview .total{border-top:1px solid var(--border-default);margin-top:6px;padding-top:8px;font-weight:700}
 .err{margin:0;font-size:14px;font-weight:600;color:var(--danger-500)}
 
+/* 誰が何で立て替えたか。ふたりを列にして、横に読めば比べられる形にします。
+   縦に6行並べていたときは、同じ手段どうしを見比べるのに
+   上下へ目を動かす必要がありました */
+.xtab{width:100%;border-collapse:collapse;table-layout:fixed}
+.xtab th,.xtab td{padding:9px 0;border-bottom:1px solid var(--border-subtle)}
+.xtab col.who{width:31%}
+.xtab thead th{
+  padding:0 0 8px;font-size:12px;font-weight:700;color:var(--text-tertiary);
+  text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:none;
+}
+.xtab tbody th{text-align:left;font-weight:600}
+.xtab tbody th .mth{display:flex;align-items:center;gap:10px;font-size:14px}
+.xtab td{
+  text-align:right;font-size:15px;font-weight:700;white-space:nowrap;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum";
+}
+.xtab td.zero{color:var(--text-tertiary);font-weight:600}
+.xtab tbody tr:last-child th,.xtab tbody tr:last-child td{border-bottom:none}
+.xtab tfoot th,.xtab tfoot td{
+  border-top:1.5px solid var(--border-default);border-bottom:none;padding-top:11px;
+  font-size:13px;color:var(--text-secondary);
+}
+.xtab tfoot td{font-size:15px;color:var(--text-primary)}
+
 .list{padding:4px}
 .list .item{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--border-subtle);cursor:pointer}
 .list .item:last-child{border-bottom:none}
@@ -1414,16 +1438,22 @@ function settingsHtml() {
   h += '</section>';
 
   h += '<section><h2 class="sect">誰が何で立て替えたか</h2>' +
-    seg("scope", ["未精算", "すべて"], UI.scope) + '<div style="height:12px"></div><div class="card list">';
-  ["A", "B"].forEach(function (p) {
-    METHODS.forEach(function (m) {
-      h += '<div class="item" style="cursor:default">' + catIcon(m, true) +
-        '<span class="t" style="font-size:14px;font-weight:600">' + esc(S.names[p]) +
-        '<span style="color:var(--text-tertiary);font-weight:500"> / ' + esc(m) + '</span></span>' +
-        '<span class="num" style="font-size:15px;font-weight:700">' + yen(sum[p + m] || 0) + '</span></div>';
-    });
+    seg("scope", ["未精算", "すべて"], UI.scope) + '<div style="height:12px"></div>' +
+    '<div class="card" style="padding:14px 16px"><table class="xtab">' +
+    '<colgroup><col><col class="who"><col class="who"></colgroup>' +
+    '<thead><tr><th></th><th>' + esc(S.names.A) + '</th><th>' + esc(S.names.B) + '</th></tr></thead><tbody>';
+  METHODS.forEach(function (m) {
+    h += '<tr><th scope="row"><span class="mth">' + catIcon(m, true) + esc(m) + '</span></th>' +
+      ["A", "B"].map(function (p) {
+        var v = sum[p + m] || 0;
+        return '<td' + (v ? '' : ' class="zero"') + '>' + yen(v) + '</td>';
+      }).join("") + '</tr>';
   });
-  h += '</div><p class="muted" style="margin:10px 2px 0">' +
+  h += '</tbody><tfoot><tr><th scope="row">合計</th>' +
+    ["A", "B"].map(function (p) {
+      return '<td>' + yen(METHODS.reduce(function (t, m) { return t + (sum[p + m] || 0); }, 0)) + '</td>';
+    }).join("") + '</tr></tfoot></table></div>' +
+    '<p class="muted" style="margin:10px 2px 0">' +
     (UI.scope === "未精算" ? "まだ精算していない分の立替額です。" : "精算済みも含めた累計です。") +
     '</p></section>';
 
