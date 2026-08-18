@@ -135,10 +135,13 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
 
 /* フォームの中の小区画。
    編集のときはカードの中に入るため、影では輪郭が出ない。
-   面の沈み込みと輪郭で区切り、影は使わない。 */
+   輪郭も引かず、面の色だけで区切る。
+
+   青系は「選択中」を表す色として既に使っているため、
+   地（#F5F7FA と白）から離れた暖色の淡い面を使う。
+   どちらの地の上でも面として認識できる。 */
 .inset{
-  background:var(--surface-sunken);
-  border:1px solid var(--ink-400);
+  background:var(--warning-50);
   border-radius:var(--radius-lg);
   padding:16px;
 }
@@ -146,6 +149,9 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
   display:block;font-size:14px;font-weight:700;
   color:var(--text-primary);margin-bottom:4px;
 }
+/* 淡い暖色の上では、既定の文字色（#6B7488）は比 4.25 で
+   基準の 4.5 に届かない。この区画の中だけ1段濃くする */
+.inset .label,.inset .muted{color:var(--ink-700)}
 .cat{
   width:44px;height:44px;flex:none;display:inline-flex;align-items:center;justify-content:center;
   border-radius:var(--radius-md);
