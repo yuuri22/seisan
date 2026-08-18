@@ -288,6 +288,37 @@ nav.tabbar button.on{color:var(--brand)}
 
 /* 長い鍵やURLが、横スクロールを生まないように */
 .ta{max-width:100%;word-break:break-all}
+
+/* ── 確認ダイアログ ─────────────────────────────────────
+   背面を押しても閉じません。
+   誤って触れたときに、取り消しにくい操作が
+   そのまま進んでしまわないようにするためです。 */
+.backdrop{
+  position:fixed;inset:0;z-index:60;
+  display:grid;place-items:center;padding:20px;
+  background:rgba(11,20,48,.52);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  animation:fade var(--dur-base) var(--ease-standard);
+}
+.dialog{
+  width:100%;max-width:360px;background:var(--surface-card);
+  border-radius:var(--radius-xl);padding:24px 22px 20px;
+  box-shadow:0 24px 60px rgba(11,20,48,.32);
+  animation:pop var(--dur-base) var(--ease-out);
+}
+.dialog h3{margin:0 0 8px;font-size:19px;font-weight:800;letter-spacing:var(--ls-tight)}
+.dialog p{margin:0;font-size:14px;line-height:1.7;color:var(--text-secondary)}
+.dialog .amount{
+  display:block;margin:16px 0 4px;padding:14px;border-radius:var(--radius-md);
+  background:var(--surface-sunken);text-align:center;
+}
+.dialog .amount .n{display:block;font-size:26px;font-weight:800;color:var(--text-primary);letter-spacing:var(--ls-tight)}
+.dialog .amount .u{display:block;margin-top:2px;font-size:12px;color:var(--text-tertiary)}
+.dialog .acts{display:flex;gap:10px;margin-top:20px}
+.dialog .acts > *{flex:1}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.backdrop,.dialog{animation:none}}
 </style>
 </head>
 <body>
@@ -407,7 +438,7 @@ var UI = {
   fileName: "", showPaste: false, reading: false,
   formError: "", notice: "", saveError: false, saving: false,
   copied: false, copyFallback: "", justSettled: false, bannerOff: -1,
-  confirmReset: false, loading: true,
+  confirmReset: false, confirmSettle: false, loading: true,
   syncing: false, syncMsg: "", syncErr: "", lastSync: "",
   invited: false, inviteUrl: "", pendingInvite: null
 };
@@ -910,19 +941,25 @@ function entryHtml(r) {
 
 function homeHtml() {
   var all = rows();
+
+  // 切り替えは記録の有無によらず常に出す。
+  // 記録が無いときだけ消えると、「すべて」が
+  // どこにあるのか分からなくなるためです
+  var h = seg("filter", ["未精算", "すべて"], UI.filter) + '<div style="height:18px"></div>';
+
   if (!all.length) {
-    return '<div class="empty"><span class="icon">' + icon("list", 32) + '</span>' +
-      '<h3>最初の1件を記録しましょう</h3>' +
-      '<p>現金やクレカで払った分は「追加」から、かんたんに記録できます。<br>PayPay分は月末に「取込」でまとめて。</p>' +
-      btn("記録を追加する", { icon: "plus", action: "goAdd" }) +
+    return h + '<div class="empty"><span class="icon">' + icon("list", 32) + '</span>' +
+      '<h3>まだ記録がありません</h3>' +
+      '<p>1件ずつなら下の「追加」から、PayPayの履歴はまとめて「取込」から記録できます。</p>' +
       '<div style="margin-top:14px">' +
       '<button type="button" class="toggle-link" data-act="goGuide">はじめての方はこちら（使い方）</button>' +
       '</div></div>';
   }
+
   var shown = UI.filter === "未精算" ? all.filter(function (r) { return !r.settled; }) : all;
-  var h = seg("filter", ["未精算", "すべて"], UI.filter) + '<div style="height:18px"></div>';
   if (!shown.length) {
-    h += '<p class="muted" style="text-align:center;padding:32px 0">未精算の記録はありません。</p>';
+    h += '<p class="muted" style="text-align:center;padding:32px 0">' +
+      (UI.filter === "未精算" ? "未精算の記録はありません。" : "記録がありません。") + '</p>';
     return h;
   }
   h += '<div class="stack" style="gap:12px">' + shown.map(function (r) {
@@ -1249,6 +1286,33 @@ function settingsHtml() {
   return h + '</div>';
 }
 
+/* 精算の最終確認。
+   背面には data-act を置いていないので、押しても閉じません。
+   「やめる」か「精算する」を選ぶまで先へ進みません。 */
+function settleDialogHtml() {
+  if (!UI.confirmSettle) return "";
+  var unsettled = rows().filter(function (r) { return !r.settled; });
+  var net = unsettled.reduce(function (s, r) { return s + r.balance; }, 0);
+  var owedBy = net > 0 ? S.names.B : S.names.A;
+  var owedTo = net > 0 ? S.names.A : S.names.B;
+
+  return '<div class="backdrop">' +
+    '<div class="dialog" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle" tabindex="-1">' +
+    '<h3 id="dlgTitle">精算しますか？</h3>' +
+    '<p>未精算の' + unsettled.length + '件を、まとめて精算済みにします。</p>' +
+    (net !== 0
+      ? '<span class="amount"><span class="n num">' + yen(Math.abs(net)) + '</span>' +
+        '<span class="u">' + esc(owedBy) + ' → ' + esc(owedTo) + '</span></span>'
+      : '<span class="amount"><span class="n">貸し借りなし</span>' +
+        '<span class="u">やりとりは発生しません</span></span>') +
+    '<p style="margin-top:14px">記録が消えることはありません。' +
+    '「すべて」に切り替えれば、あとから見返せます。</p>' +
+    '<div class="acts">' +
+    btn("やめる", { variant: "quiet", action: "settleCancel" }) +
+    btn("精算する", { action: "settleConfirm" }) +
+    '</div></div></div>';
+}
+
 function render() {
   var app = document.getElementById("app");
   if (UI.loading) { app.innerHTML = '<p class="muted" style="text-align:center;padding:80px 0">読み込んでいます…</p>'; return; }
@@ -1354,8 +1418,16 @@ function render() {
   h += '</main>';
 
   h += tabbarHtml();
+  h += settleDialogHtml();
 
   app.innerHTML = h;
+
+  // 確認中は背面を動かさず、操作の焦点をダイアログに移す
+  document.body.style.overflow = UI.confirmSettle ? "hidden" : "";
+  if (UI.confirmSettle) {
+    var dlg = document.getElementById("dlg");
+    if (dlg) dlg.focus();
+  }
 }
 
 function tabbarHtml() {
@@ -1419,7 +1491,12 @@ document.addEventListener("click", function (ev) {
     case "dismissBanner": UI.bannerOff = S.book.pending; UI.justSettled = false; render(); break;
     case "retry": persist(); render(); break;
 
-    case "settle":
+    // 精算は取り消しにくい操作なので、押しただけでは実行しない
+    case "settle": UI.confirmSettle = true; render(); break;
+    case "settleCancel": UI.confirmSettle = false; render(); break;
+
+    case "settleConfirm":
+      UI.confirmSettle = false;
       change(function () {
         var d = today();
         S.entries = S.entries.map(function (e) {
@@ -1662,6 +1739,15 @@ Store.load().then(function (d) {
 /* 画面に戻ってきたときに、相手の変更を取り込む */
 document.addEventListener("visibilitychange", function () {
   if (!document.hidden && syncReady()) runSync(true);
+});
+
+/* Escキーでも確認をやめられるようにする。
+   キー操作は誤って触れる心配がないので、背面タップとは別に扱います */
+document.addEventListener("keydown", function (ev) {
+  if (ev.key === "Escape" && UI.confirmSettle) {
+    UI.confirmSettle = false;
+    render();
+  }
 });
 </script>
 </body>
