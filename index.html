@@ -1056,8 +1056,9 @@ function entryHtml(r) {
 
 function monthRowHtml(all, m) {
   var ms = monthsOf(all);
-  // 月がひとつだけなら、絞り込む意味がないので出しません
-  if (ms.length < 2) return "";
+  // 月がひとつだけのときも出します。
+  // 記録の数で操作が消えると、どこにあるのか分からなくなるためです
+  if (!ms.length) return "";
   return '<div style="height:12px"></div>' +
     '<div class="months" role="group" aria-label="月で絞り込む">' +
     '<button type="button" data-seg="month" data-value=""' + (m ? '' : ' class="on"') +
