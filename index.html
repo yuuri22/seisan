@@ -264,6 +264,30 @@ nav.tabbar button{
 }
 nav.tabbar button .ico{display:inline-flex;height:22px}
 nav.tabbar button.on{color:var(--brand)}
+
+/* ── 狭い画面での収まり ─────────────────────────────────
+   グリッドの子は既定で「中身より小さくなれない」ため、
+   入力欄の最小幅（約170px）が効いて2カラムが416px必要になり、
+   スマホの表示領域（335〜390px）からはみ出していました。
+   縮んでよいことを明示します。 */
+.stack > *,.grid2 > *,.card > *{min-width:0}
+.control{max-width:100%}
+.control input{width:100%;min-width:0}
+
+/* 日付欄は端末ごとに最小幅を持つため、はみ出す余地を残さない */
+.control input[type="date"]{max-width:100%;-webkit-appearance:none;appearance:none}
+
+/* 名前が長いと切り出しボタンが押し出されるのを防ぐ */
+.seg{max-width:100%}
+.seg button{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px}
+
+/* 2カラムが窮屈になる幅では、素直に縦へ積む */
+@media (max-width:420px){
+  .grid2{grid-template-columns:1fr}
+}
+
+/* 長い鍵やURLが、横スクロールを生まないように */
+.ta{max-width:100%;word-break:break-all}
 </style>
 </head>
 <body>
