@@ -548,7 +548,7 @@ var UI = {
   copied: false, copyFallback: "", justSettled: false, bannerOff: -1,
   confirmReset: false, confirm: null, loading: true, reveal: {},
   syncing: false, syncMsg: "", syncErr: "", lastSync: "",
-  invited: false, inviteUrl: "", pendingInvite: null
+  invited: false, inviteUrl: "", inviteCopyErr: "", pendingInvite: null
 };
 
 var METHODS = ["PayPay", "現金", "クレカ"];
@@ -936,6 +936,26 @@ function copyForSheet() {
   } else {
     UI.copyFallback = tsv; UI.tab = "set"; render();
   }
+}
+
+// 招待リンクは長いので、指でなぞって選ぶと途中で切れがちです。
+// 自動コピーが使えない環境では、枠の中を全選択した状態にして返します
+function copyInvite() {
+  if (!UI.inviteUrl) return;
+  function ok() {
+    UI.invited = true; UI.inviteCopyErr = ""; render();
+    setTimeout(function () { UI.invited = false; render(); }, 2600);
+  }
+  function manual() {
+    UI.invited = false;
+    UI.inviteCopyErr = "この端末では自動コピーが使えませんでした。枠の中を選んだ状態にしたので、そのままコピーしてください。";
+    render();
+    var box = document.getElementById("invitebox");
+    if (box) { box.focus(); box.select(); try { box.setSelectionRange(0, box.value.length); } catch (e) {} }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(UI.inviteUrl).then(ok).catch(manual);
+  } else { manual(); }
 }
 
 /* ── フォーム ────────────────────────────────────────────── */
@@ -1397,12 +1417,18 @@ function settingsHtml() {
     btn(UI.syncing ? "同期しています…" : "いま同期する",
         { block: true, variant: "secondary", action: "syncNow", icon: "sync",
           disabled: UI.syncing || !(S.sync.url && S.sync.key && S.sync.house) }) +
-    btn(UI.invited ? "コピーしました" : "相手を招待するリンクを作る",
-        { block: true, variant: "quiet", action: "invite", icon: UI.invited ? "check" : "copy",
+    btn(UI.inviteUrl ? "リンクを作り直す" : "相手を招待するリンクを作る",
+        { block: true, variant: "quiet", action: "invite", icon: "copy",
           disabled: !(S.sync.url && S.sync.key && S.sync.house) }) +
     (UI.inviteUrl
-      ? '<textarea class="ta" readonly style="height:80px;font-size:12px;background:var(--surface-sunken)">' +
+      ? '<textarea class="ta" id="invitebox" readonly ' +
+        'style="height:80px;font-size:12px;background:var(--surface-sunken)">' +
         esc(UI.inviteUrl) + '</textarea>' +
+        btn(UI.invited ? "コピーしました" : "リンクを全部コピー",
+            { block: true, action: "copyInvite", icon: UI.invited ? "check" : "copy" }) +
+        (UI.inviteCopyErr
+          ? '<p class="muted" style="margin:-4px 2px 0">' + esc(UI.inviteCopyErr) + '</p>'
+          : '') +
         '<div class="note warn" style="font-size:13px">このリンクには鍵が入っています。' +
         '相手だけに届く方法で送り、SNSなど人目に触れる場所には貼らないでください。</div>'
       : '') +
@@ -1851,6 +1877,7 @@ document.addEventListener("click", function (ev) {
       UI.pendingInvite = null; render();
       break;
     case "syncNow": runSync(false); break;
+    case "copyInvite": copyInvite(); break;
     case "invite": {
       if (location.protocol === "file:") {
         UI.inviteUrl = "";
@@ -1861,6 +1888,7 @@ document.addEventListener("click", function (ev) {
       }
       var link = makeInvite();
       UI.inviteUrl = link;
+      UI.inviteCopyErr = "";
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(link).then(function () {
           UI.invited = true; render();
