@@ -330,19 +330,20 @@ nav.tabbar button.on{color:var(--brand)}
 }
 .dialog .amount .n{display:block;font-size:26px;font-weight:800;color:var(--text-primary);letter-spacing:var(--ls-tight)}
 .dialog .amount .u{display:block;margin-top:2px;font-size:12px;color:var(--text-tertiary)}
-.dialog .acts{display:flex;gap:10px;margin-top:20px}
-.dialog .acts > *{flex:1}
-/* ダイアログは白い面の上にある。
-   既定の淡い背景色（#EEF1F6）では輪郭がほとんど見えず、
-   ボタンではなく影だけが浮いているように見えていた。
-   輪郭を持つ形にして、影は外す。 */
-.dialog .acts .btn{height:50px;padding:0 14px;font-size:15px;box-shadow:none}
-.dialog .acts .btn-quiet{
+/* ボタンを横に並べる行。
+   カード下部の「編集・削除」に使う .acts とは別物です。
+   同じ名前にすると .acts button の指定が勝ってしまい、
+   ボタンの背景が透明になって影だけが残ります。 */
+.rowacts{display:flex;gap:10px}
+.rowacts > .btn{flex:1;min-width:0;padding:0 14px;box-shadow:none}
+.rowacts > .btn-quiet{
   background:var(--surface-card);color:var(--text-primary);
   border:1.5px solid var(--ink-300);
 }
-.dialog .acts .btn-quiet:active{background:var(--surface-sunken)}
-.dialog .acts .btn-primary{background:var(--brand);color:#fff;border:1.5px solid var(--brand)}
+.rowacts > .btn-quiet:active{background:var(--surface-sunken)}
+.rowacts > .btn-primary{background:var(--brand);color:#fff;border:1.5px solid var(--brand)}
+.dialog .rowacts{margin-top:20px}
+.dialog .rowacts > .btn{height:50px;font-size:15px}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.backdrop,.dialog{animation:none}}
@@ -1006,9 +1007,9 @@ function homeHtml() {
     if (UI.editId === r.id) {
       return '<div class="card" style="padding:18px"><div class="stack">' +
         '<div style="font-size:15px;font-weight:700">記録を編集</div>' + formHtml(UI.form) +
-        '<div style="display:flex;gap:10px">' +
-        btn("保存する", { block: true, action: "saveEdit", id: r.id }) +
-        btn("やめる", { variant: "quiet", action: "cancelEdit" }) + '</div></div></div>';
+        '<div class="rowacts">' +
+        btn("やめる", { variant: "quiet", action: "cancelEdit" }) +
+        btn("保存する", { action: "saveEdit", id: r.id }) + '</div></div></div>';
     }
     return '<div class="card' + (r.settled ? ' settled' : '') + '" style="padding:14px">' + entryHtml(r) + '</div>';
   }).join("") + '</div>';
@@ -1347,7 +1348,7 @@ function settleDialogHtml() {
         '<span class="u">やりとりは発生しません</span></span>') +
     '<p style="margin-top:14px">記録が消えることはありません。' +
     '「すべて」に切り替えれば、あとから見返せます。</p>' +
-    '<div class="acts">' +
+    '<div class="rowacts">' +
     btn("やめる", { variant: "quiet", action: "settleCancel" }) +
     btn("精算する", { action: "settleConfirm" }) +
     '</div></div></div>';
@@ -1390,9 +1391,9 @@ function render() {
         : '<div class="note warn" style="margin-top:12px;font-size:13px">' +
           '心当たりのないリンクなら、使わないでください。' +
           '見知らぬ接続先を選ぶと、あなたの記録がその相手に渡ります。</div>') +
-      '<div style="display:flex;gap:10px;margin-top:16px">' +
-      btn("この設定を使う", { block: true, action: "applyInvite" }) +
+      '<div class="rowacts" style="margin-top:16px">' +
       btn("やめる", { variant: "quiet", action: "rejectInvite" }) +
+      btn("この設定を使う", { action: "applyInvite" }) +
       '</div></div></main>';
     app.innerHTML = h;
     return;
