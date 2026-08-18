@@ -174,9 +174,6 @@ main{padding:24px var(--screen-pad) 0}
 /* 日付は「1月1日」〜「12月31日」で幅がほぼ一定。
    最大幅ぶんを先に確保して、カードをまたいで縦に揃える */
 .entry .sub .date{flex:none;min-width:4.6em}
-.entry .sub .sep{flex:none}
-/* 名前が長いときは、折り返さずに末尾を省略する */
-.entry .sub .payer{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600}
 .entry .right{text-align:right;flex:none}
 .entry .amt{font-size:15px;font-weight:700;color:var(--money-out)}
 .entry .bal{font-size:12px;font-weight:600;margin-top:3px;color:var(--brand-strong)}
@@ -325,6 +322,17 @@ nav.tabbar button.on{color:var(--brand)}
 .dialog .amount .u{display:block;margin-top:2px;font-size:12px;color:var(--text-tertiary)}
 .dialog .acts{display:flex;gap:10px;margin-top:20px}
 .dialog .acts > *{flex:1}
+/* ダイアログは白い面の上にある。
+   既定の淡い背景色（#EEF1F6）では輪郭がほとんど見えず、
+   ボタンではなく影だけが浮いているように見えていた。
+   輪郭を持つ形にして、影は外す。 */
+.dialog .acts .btn{height:50px;padding:0 14px;font-size:15px;box-shadow:none}
+.dialog .acts .btn-quiet{
+  background:var(--surface-card);color:var(--text-primary);
+  border:1.5px solid var(--ink-300);
+}
+.dialog .acts .btn-quiet:active{background:var(--surface-sunken)}
+.dialog .acts .btn-primary{background:var(--brand);color:#fff;border:1.5px solid var(--brand)}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.backdrop,.dialog{animation:none}}
@@ -910,13 +918,10 @@ function formHtml(f) {
 }
 
 function entryHtml(r) {
-  var side = r.payer === "A" ? "var(--blue-600)" : "var(--navy-700)";
   var dir = r.balance > 0 ? S.names.B + " → " + S.names.A : S.names.A + " → " + S.names.B;
   var h = '<div class="entry">' + catIcon(r.method) +
     '<div class="body"><div class="title">' + esc(r.title) + '</div>' +
-    '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span>' +
-    '<span class="sep" aria-hidden="true">·</span>' +
-    '<span class="payer" style="color:' + side + '">' + esc(S.names[r.payer]) + 'が立替</span></div></div>' +
+    '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span></div></div>' +
     '<div class="right"><div class="amt num">' + yen(r.amount) + '</div>' +
     '<div class="bal num"' + (r.balance === 0 ? ' style="color:var(--text-tertiary)"' : '') + '>' +
     (r.balance === 0 ? "—" : esc(yen(Math.abs(r.balance)) + " " + dir)) + '</div></div></div>';
