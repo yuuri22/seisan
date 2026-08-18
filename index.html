@@ -1488,11 +1488,17 @@ function render() {
     '<div class="ends"><span>' + esc(S.names.B) + ' 払いすぎ</span><span>' + esc(S.names.A) + ' 払いすぎ</span></div>' +
     '</div></div>';
 
-  h += '<div style="margin-top:16px">' +
-    btn("精算する", { block: true, icon: "check", action: "settle", disabled: !unsettled.length }) + '</div>' +
-    '<p class="muted" style="margin:10px 2px 0">' +
-    (unsettled.length ? "未精算 " + unsettled.length + " 件をまとめて精算済みにします。" : "未精算の記録はありません。") +
-    '</p></section>';
+  // 精算するのは、記録の一覧を見ている場面だけです。
+  // 追加や設定の画面にも出していたため、
+  // 別の操作をしている最中に誤って押せてしまっていました
+  if (UI.tab === "home") {
+    h += '<div style="margin-top:16px">' +
+      btn("精算する", { block: true, icon: "check", action: "settle", disabled: !unsettled.length }) + '</div>' +
+      '<p class="muted" style="margin:10px 2px 0">' +
+      (unsettled.length ? "未精算 " + unsettled.length + " 件をまとめて精算済みにします。" : "未精算の記録はありません。") +
+      '</p>';
+  }
+  h += '</section>';
 
   /* 通知 */
   h += '<div class="notices">';
