@@ -1,0 +1,23 @@
+# ============================================================
+# 鍵が入ったファイルは絶対にコミットしない
+# 一度でも入ると履歴に永久に残り、消しても取り出せてしまいます
+# ============================================================
+*-設定済み.html
+*.local.html
+.env
+.env.*
+secrets.*
+
+# Supabase CLI の作業ファイル
+supabase/.temp/
+supabase/.branches/
+
+# エディタ・OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node
+node_modules/
+npm-debug.log*

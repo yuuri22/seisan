@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>割り勘</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Kyash Design System tokens ─────────────────────────── */
+:root{
+  --blue-50:#EAF4FF;--blue-100:#D2E7FF;--blue-300:#6FB0FF;--blue-500:#0091FF;--blue-600:#0072E5;--blue-700:#0059C2;
+  --navy-900:#0B1430;--navy-800:#131E44;--navy-700:#1E2C5E;
+  --cyan-400:#36D9F5;--cyan-500:#00C2E8;
+  --ink-900:#0E1320;--ink-700:#3A4254;--ink-500:#6B7488;--ink-400:#98A0B3;--ink-300:#C4CAD6;
+  --gray-100:#EEF1F6;--gray-50:#F5F7FA;--white:#fff;
+  --success-500:#00B876;--success-50:#E2F7EF;
+  --warning-500:#FF9500;--warning-50:#FFF2E0;--warning-ink:#9a5a00;
+  --danger-500:#FF4D5E;--danger-50:#FFE9EB;--danger-ink:#c0303f;
+  --brand:var(--blue-500);--brand-strong:var(--blue-600);--brand-soft:var(--blue-50);
+  --text-primary:var(--ink-900);--text-secondary:var(--ink-500);--text-tertiary:var(--ink-400);
+  --surface-app:var(--gray-50);--surface-card:var(--white);--surface-sunken:var(--gray-100);
+  --border-subtle:var(--gray-100);--border-default:#E2E6EE;
+  --money-out:var(--ink-900);
+  --gradient-card:linear-gradient(135deg,#1E5BFF 0%,#0091FF 48%,#00C2E8 100%);
+  --font-sans:"Plus Jakarta Sans","Noto Sans JP","Hiragino Kaku Gothic ProN",-apple-system,BlinkMacSystemFont,sans-serif;
+  --ls-tight:-0.02em;--ls-wide:.04em;--lh-normal:1.5;
+  --num:"tnum" 1,"lnum" 1;
+  --screen-pad:20px;
+  --radius-sm:10px;--radius-md:14px;--radius-lg:18px;--radius-xl:24px;--radius-pill:999px;
+  --shadow-sm:0 2px 8px rgba(14,19,32,.06);
+  --shadow-md:0 6px 20px rgba(14,19,32,.08);
+  --shadow-card:0 10px 30px rgba(0,90,194,.18);
+  --shadow-focus:0 0 0 4px rgba(0,145,255,.22);
+  --dur-fast:140ms;--dur-base:220ms;--dur-slow:360ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-out:cubic-bezier(.16,1,.3,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+body{
+  margin:0;padding:0 0 calc(70px + env(safe-area-inset-bottom,0px));
+  background:var(--surface-app);color:var(--text-primary);
+  font-family:var(--font-sans);font-size:16px;-webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font-family:inherit}
+:focus{outline:none}
+:focus-visible{box-shadow:var(--shadow-focus);border-radius:var(--radius-sm)}
+.num{font-feature-settings:var(--num)}
+.wrap{max-width:520px;margin:0 auto}
+@media (prefers-reduced-motion:reduce){*{transition-duration:1ms!important;animation-duration:1ms!important}}
+
+/* ── primitives ─────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:52px;padding:0 24px;font-size:16px;font-weight:700;letter-spacing:-.01em;
+  border:none;border-radius:var(--radius-pill);cursor:pointer;
+  transition:transform var(--dur-fast) var(--ease-standard),filter var(--dur-fast);
+}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none!important}
+.btn.block{width:100%}
+.btn.sm{height:40px;padding:0 18px;font-size:14px}
+.btn.lg{height:58px;font-size:17px}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(0,114,229,.28)}
+.btn-secondary{background:var(--brand-soft);color:var(--brand-strong)}
+.btn-quiet{background:var(--surface-sunken);color:var(--text-secondary)}
+.btn-danger{background:var(--danger-500);color:#fff}
+.btn-ghost{background:transparent;color:var(--brand-strong);padding:0;height:auto}
+
+.field{display:block;margin-bottom:0}
+.field > .label{display:block;font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+.control{
+  display:flex;align-items:center;gap:8px;height:52px;padding:0 16px;background:#fff;
+  border:1.5px solid var(--border-default);border-radius:var(--radius-md);
+  transition:border-color var(--dur-fast),box-shadow var(--dur-fast);
+}
+.control:focus-within{border-color:var(--brand);box-shadow:var(--shadow-focus)}
+.control .prefix{color:var(--text-secondary);font-weight:700}
+.control input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:16px;color:var(--text-primary)}
+.control input:focus-visible{box-shadow:none}
+.hint{display:block;font-size:12px;color:var(--text-tertiary);margin-top:6px;line-height:var(--lh-normal)}
+textarea.ta{
+  width:100%;padding:16px;resize:vertical;background:#fff;border:1.5px solid var(--border-default);
+  border-radius:var(--radius-md);font-size:13px;line-height:1.6;color:var(--text-primary);outline:none;
+}
+textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
+.drop{
+  display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 16px;text-align:center;
+  background:#fff;border:1.5px dashed var(--border-default);border-radius:var(--radius-lg);cursor:pointer;
+  transition:border-color var(--dur-fast),background var(--dur-fast);
+}
+.drop:hover{border-color:var(--blue-300)}
+.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+.drop .dicon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;
+  border-radius:50%;background:var(--brand-soft);color:var(--brand);margin-bottom:2px}
+.drop .dmain{font-size:15px;font-weight:700;color:var(--brand-strong)}
+.drop .dsub{font-size:13px;color:var(--text-tertiary);line-height:var(--lh-normal)}
+.filename{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius-md);
+  background:var(--brand-soft);color:var(--brand-strong);font-size:13px;font-weight:600}
+.toggle-link{border:none;background:transparent;color:var(--text-link,var(--blue-600));
+  font-size:13px;font-weight:600;cursor:pointer;padding:6px 2px}
+
+.seg{display:flex;padding:4px;gap:4px;background:var(--surface-sunken);border-radius:var(--radius-pill)}
+.seg button{
+  flex:1;height:40px;border:none;cursor:pointer;font-size:14px;font-weight:700;
+  border-radius:var(--radius-pill);background:transparent;color:var(--text-secondary);
+  transition:all var(--dur-fast) var(--ease-standard);
+}
+.seg button.on{background:#fff;color:var(--brand-strong);box-shadow:var(--shadow-sm)}
+
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 16px;font-size:14px;font-weight:600;
+  border:1.5px solid var(--border-default);background:#fff;color:var(--text-secondary);
+  border-radius:var(--radius-pill);cursor:pointer;transition:all var(--dur-fast) var(--ease-standard);
+}
+.chip.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-strong)}
+
+.card{background:var(--surface-card);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:16px}
+.card.md{box-shadow:var(--shadow-md)}
+.cat{
+  width:44px;height:44px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--radius-md);
+}
+.cat.sm{width:36px;height:36px}
+.badge{
+  display:inline-flex;align-items:center;height:22px;padding:0 9px;font-size:12px;font-weight:700;
+  border-radius:var(--radius-pill);background:var(--surface-sunken);color:var(--ink-700);
+}
+h2.sect{font-size:16px;font-weight:700;margin:0 0 10px;letter-spacing:-.01em}
+
+/* ── layout ─────────────────────────────────────────────── */
+header.bar{display:flex;align-items:center;justify-content:space-between;padding:16px var(--screen-pad) 8px}
+.appname{font-size:20px;font-weight:800;letter-spacing:var(--ls-tight)}
+.status{font-size:12px;font-weight:600;color:var(--text-tertiary)}
+.hero{padding:8px var(--screen-pad) 0}
+.gradcard{
+  background:var(--gradient-card);box-shadow:var(--shadow-card);border-radius:var(--radius-xl);
+  padding:22px 22px 20px;color:#fff;
+}
+.overline{font-size:12px;font-weight:700;letter-spacing:var(--ls-wide);color:rgba(255,255,255,.78)}
+.dir{margin-top:12px;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700}
+.amount{font-weight:800;letter-spacing:var(--ls-tight);line-height:1.05}
+.amount .yen{font-size:.55em;vertical-align:.12em;margin-right:1px}
+.meter{margin-top:20px}
+.track{position:relative;height:6px;border-radius:var(--radius-pill);background:rgba(255,255,255,.25)}
+.track .mid{position:absolute;top:-2px;bottom:-2px;left:50%;width:1px;background:rgba(255,255,255,.45)}
+.track .knob{
+  position:absolute;top:-5px;width:16px;height:16px;border-radius:50%;background:#fff;
+  box-shadow:0 2px 8px rgba(11,20,48,.28);transition:left var(--dur-slow) var(--ease-out);
+}
+.meter .ends{display:flex;justify-content:space-between;margin-top:10px;font-size:11px;font-weight:600;color:rgba(255,255,255,.8)}
+
+.notices{padding:0 var(--screen-pad)}
+.notice{display:flex;align-items:center;gap:10px;margin-top:16px;padding:12px 14px;border-radius:var(--radius-lg)}
+.notice.info{background:var(--brand-soft);color:var(--brand-strong)}
+.notice.warn{background:var(--warning-50);color:var(--warning-ink)}
+.notice.err{background:var(--danger-50);color:var(--danger-ink)}
+.notice .txt{flex:1;font-size:13px;font-weight:600;line-height:var(--lh-normal)}
+.notice .link{border:none;background:transparent;font-size:13px;font-weight:600;cursor:pointer;color:inherit;padding:4px}
+main{padding:24px var(--screen-pad) 0}
+.stack{display:grid;gap:16px}
+.stack.lg{gap:32px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.entry{display:flex;align-items:center;gap:12px}
+.entry .body{flex:1;min-width:0}
+.entry .title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry .sub{display:flex;gap:6px;margin-top:3px;font-size:13px;color:var(--text-tertiary)}
+.entry .right{text-align:right;flex:none}
+.entry .amt{font-size:15px;font-weight:700;color:var(--money-out)}
+.entry .bal{font-size:12px;font-weight:600;margin-top:3px;color:var(--brand-strong)}
+.personal{margin-top:10px;padding:8px 12px;border-radius:var(--radius-md);background:var(--warning-50);
+  font-size:12px;font-weight:600;color:var(--warning-ink);line-height:var(--lh-normal)}
+.acts{display:flex;gap:16px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)}
+.acts button{display:inline-flex;align-items:center;gap:5px;border:none;background:transparent;
+  padding:8px 4px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-radius:var(--radius-sm)}
+.acts .spacer{flex:1}
+.acts .danger{color:var(--danger-500)}
+.acts .brand{color:var(--brand-strong)}
+.settled{opacity:.62}
+
+.preview{background:var(--surface-sunken);border-radius:var(--radius-lg);padding:14px 16px}
+.preview .line{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;font-size:14px}
+.preview .line span:first-child{color:var(--text-secondary)}
+.preview .line b{font-size:15px;font-weight:600}
+.preview .total{border-top:1px solid var(--border-default);margin-top:6px;padding-top:8px;font-weight:700}
+.err{margin:0;font-size:14px;font-weight:600;color:var(--danger-500)}
+
+.list{padding:4px}
+.list .item{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--border-subtle);cursor:pointer}
+.list .item:last-child{border-bottom:none}
+.list .item.off{opacity:.5}
+.list .item input[type=checkbox]{width:20px;height:20px;accent-color:var(--brand);flex:none}
+.list .item .t{flex:1;min-width:0}
+.list .item .t b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list .item .t small{display:block;font-size:12px;color:var(--text-tertiary);margin-top:2px}
+
+.empty{text-align:center;padding:40px 8px 24px}
+.empty .icon{display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;
+  border-radius:50%;background:var(--brand-soft);color:var(--brand);margin-bottom:18px}
+.empty h3{font-size:17px;font-weight:700;margin:0 0 6px}
+.empty p{font-size:14px;color:var(--text-secondary);line-height:var(--lh-normal);margin:0 0 20px}
+.muted{font-size:13px;color:var(--text-tertiary);line-height:var(--lh-normal)}
+
+/* スイッチ */
+.sw{width:52px;height:32px;flex:none;padding:3px;border:none;border-radius:var(--radius-pill);
+  background:var(--ink-300);cursor:pointer;display:flex;align-items:center;
+  transition:background var(--dur-base) var(--ease-standard)}
+.sw.on{background:var(--brand)}
+.sw .knob{width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);
+  transform:translateX(0);transition:transform var(--dur-base) var(--ease-spring)}
+.sw.on .knob{transform:translateX(20px)}
+
+/* 使い方ページ */
+.guide{padding-bottom:8px}
+.guide .lead{font-size:14px;color:var(--text-secondary);line-height:var(--lh-normal);margin:0 0 4px}
+.guide h3{font-size:16px;font-weight:700;margin:0 0 10px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.guide h3 .n{
+  display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;
+  border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:800;
+}
+.guide p{font-size:14px;color:var(--text-secondary);line-height:1.7;margin:0 0 10px}
+.guide p:last-child{margin-bottom:0}
+.guide b{color:var(--text-primary);font-weight:700}
+.guide ol,.guide ul{margin:0 0 10px;padding-left:1.3em;font-size:14px;color:var(--text-secondary);line-height:1.8}
+.guide li{margin-bottom:4px}
+.guide li:last-child{margin-bottom:0}
+.guide .note{
+  padding:12px 14px;border-radius:var(--radius-md);background:var(--surface-sunken);
+  font-size:13px;line-height:1.7;color:var(--text-secondary);
+}
+.guide .note.warn{background:var(--warning-50);color:var(--warning-ink)}
+.guide .note.info{background:var(--brand-soft);color:var(--brand-strong)}
+.guide .kv{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-subtle);font-size:14px}
+.guide .kv:last-child{border-bottom:none}
+.guide .kv .k{flex:none;width:96px;font-weight:700;color:var(--text-primary)}
+.guide .kv .v{flex:1;color:var(--text-secondary);line-height:1.6}
+.guide .flow{display:grid;gap:8px}
+.guide .step{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--text-secondary);line-height:1.6}
+.guide .step .dot{
+  flex:none;width:22px;height:22px;margin-top:1px;border-radius:50%;
+  background:var(--brand-soft);color:var(--brand-strong);
+  display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+}
+.guide .calc{
+  font-size:13px;line-height:1.9;background:var(--surface-sunken);border-radius:var(--radius-md);padding:12px 14px;
+}
+.guide .calc .row{display:flex;justify-content:space-between;gap:12px}
+.guide .calc .row.total{border-top:1px solid var(--border-default);margin-top:6px;padding-top:6px;font-weight:700;color:var(--text-primary)}
+
+nav.tabbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+  border-top:1px solid var(--border-subtle);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+nav.tabbar .inner{display:flex;width:100%;max-width:520px;padding:0 var(--screen-pad)}
+nav.tabbar button{
+  flex:1;min-width:0;border:none;background:transparent;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;padding:8px 0 7px;
+  color:var(--text-tertiary);font-size:10.5px;font-weight:700;line-height:1;letter-spacing:-.02em;
+  border-radius:var(--radius-md);transition:color var(--dur-fast);
+}
+nav.tabbar button .ico{display:inline-flex;height:22px}
+nav.tabbar button.on{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+"use strict";
+
+/* ─────────────────────────────────────────────────────────
+   保存先
+   ・Claudeのアーティファクト内 → window.storage
+   ・ダウンロードして自分のブラウザで開いた場合 → localStorage
+   どちらも使えない場合は、開いている間だけメモリに保持します。
+   ───────────────────────────────────────────────────────── */
+/* ============================================================
+   同期の既定値
+   セットアップのときに、ここの3つを書き換えます。
+   埋めておくと、アプリを開いた時点で同期が始まります。
+   空のままなら、設定画面から手で入れる形になります。
+   ============================================================ */
+var DEFAULTS = {
+  url:   "",   // 例: https://xxxxxxxx.supabase.co
+  key:   "",   // anon public キー
+  house: ""    // 共有キー（UUID）
+};
+
+/* ============================================================
+   招待リンクから設定を受け取る
+
+   URLの「#」より後ろは、サーバーに送信されません。
+   そのため、GitHubなど公開の場所にアプリを置いたままでも、
+   鍵はリンクを受け取った人の端末にしか渡りません。
+   ============================================================ */
+function readInvite() {
+  var hash = String(location.hash || "");
+  var m = /[#&]s=([A-Za-z0-9\-_=]+)/.exec(hash);
+  if (!m) return null;
+  try {
+    var json = atob(m[1].replace(/-/g, "+").replace(/_/g, "/"));
+    var o = JSON.parse(json);
+    if (o && o.u && o.k && o.h) return { url: o.u, key: o.k, house: o.h, on: true };
+  } catch (e) {}
+  return null;
+}
+
+function makeInvite() {
+  var payload = JSON.stringify({ u: S.sync.url, k: S.sync.key, h: S.sync.house });
+  var code = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_");
+  return location.origin + location.pathname + "#s=" + code;
+}
+
+/* アドレス欄から鍵を消す。履歴や共有時に残らないように */
+function clearInvite() {
+  if (!location.hash) return;
+  try {
+    history.replaceState(null, "", location.pathname + location.search);
+  } catch (e) {
+    location.hash = "";
+  }
+}
+
+var KEY = "warikan:data";
+var Store = (function () {
+  var memory = null;
+  var mode = "memory";
+  if (typeof window !== "undefined" && window.storage && window.storage.get) {
+    mode = "artifact";
+  } else {
+    try {
+      window.localStorage.setItem("warikan:test", "1");
+      window.localStorage.removeItem("warikan:test");
+      mode = "local";
+    } catch (e) { mode = "memory"; }
+  }
+  return {
+    mode: mode,
+    load: function () {
+      if (mode === "artifact") {
+        return window.storage.get(KEY, false).then(function (r) {
+          return r && r.value ? JSON.parse(r.value) : null;
+        }).catch(function () { return null; });
+      }
+      try {
+        if (mode === "local") {
+          var v = window.localStorage.getItem(KEY);
+          return Promise.resolve(v ? JSON.parse(v) : null);
+        }
+      } catch (e) {}
+      return Promise.resolve(memory);
+    },
+    save: function (data) {
+      if (mode === "artifact") return window.storage.set(KEY, JSON.stringify(data), false);
+      try {
+        if (mode === "local") {
+          window.localStorage.setItem(KEY, JSON.stringify(data));
+          return Promise.resolve();
+        }
+      } catch (e) { return Promise.reject(e); }
+      memory = data;
+      return Promise.resolve();
+    }
+  };
+})();
+
+/* ── 状態 ────────────────────────────────────────────────── */
+var S = {
+  names: { A: "Aさん", B: "Bさん" },
+  entries: [],
+  book: { lastExportAt: "", pending: 0 },
+  sync: { url: "", key: "", house: "", on: false },
+  namesUpdatedAt: 0
+};
+var UI = {
+  tab: "home", filter: "未精算", scope: "未精算",
+  editId: null, deleteId: null, form: null,
+  parsed: null, csvText: "", importPayer: "A", parseError: "",
+  fileName: "", showPaste: false, reading: false,
+  formError: "", notice: "", saveError: false, saving: false,
+  copied: false, copyFallback: "", justSettled: false, bannerOff: -1,
+  confirmReset: false, loading: true,
+  syncing: false, syncMsg: "", syncErr: "", lastSync: "",
+  invited: false, inviteUrl: "", pendingInvite: null
+};
+
+var METHODS = ["PayPay", "現金", "クレカ"];
+var META = {
+  "PayPay": { color: "var(--blue-500)", soft: "#EAF4FF", icon: "phone" },
+  "現金":   { color: "var(--success-500)", soft: "#E2F7EF", icon: "cash" },
+  "クレカ": { color: "var(--warning-500)", soft: "#FFF2E0", icon: "card" }
+};
+function meta(m) { return META[m] || META["現金"]; }
+
+/* ── 小道具 ──────────────────────────────────────────────── */
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function yen(n) {
+  return (n < 0 ? "−" : "") + "¥" + Math.abs(Math.round(n)).toLocaleString("ja-JP");
+}
+function money(n, size) {
+  var neg = n < 0;
+  return '<span class="amount num" style="font-size:' + size + 'px">' +
+    (neg ? "−" : "") + '<span class="yen">¥</span>' +
+    Math.abs(Math.round(n)).toLocaleString("ja-JP") + '</span>';
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function jpDate(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+  return m ? Number(m[2]) + "月" + Number(m[3]) + "日" : (s || "");
+}
+function whenLabel(iso) {
+  if (!iso) return "";
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/* アイコン（2pxラウンドライン） */
+var PATHS = {
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="3.5" cy="18" r="1.2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  import: '<path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  gear: '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.46V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.46-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.6 1.6 0 0 0 9 4.6a1.6 1.6 0 0 0 1-1.46V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.46 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.6 1.6 0 0 0 19.4 9a1.6 1.6 0 0 0 1.46 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.46 1Z"/>',
+  phone: '<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18.5h2"/>',
+  cash: '<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v4M18 10v4"/>',
+  card: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h3"/>',
+  pencil: '<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5l3 3"/>',
+  trash: '<path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9L17.5 7"/>',
+  check: '<path d="M5 12.5 10 17.5 19 7"/>',
+  undo: '<path d="M4 9h11a5 5 0 0 1 0 10h-5"/><path d="M8 5 4 9l4 4"/>',
+  download: '<path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4.5 18.5h15"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 5.5A2.5 2.5 0 0 0 12.5 3h-7A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15"/>',
+  arrow: '<path d="M4 12h15m0 0-5-5m5 5-5 5"/>',
+  sync: '<path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5"/><path d="M4 4.5V9h4.5"/><path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5"/><path d="M20 19.5V15h-4.5"/>',
+  book: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H18a2 2 0 0 1 2 2v13.5"/><path d="M4 4.5v13A2.5 2.5 0 0 0 6.5 20H20"/><path d="M8 8h8M8 12h6"/>'
+};
+function icon(name, size, stroke) {
+  size = size || 24;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="' + (stroke || 2) + '" stroke-linecap="round" stroke-linejoin="round">' +
+    (PATHS[name] || "") + '</svg>';
+}
+
+/* ── 計算：総額から個人分を引いて折半する ─────────────────── */
+function calc(e) {
+  var amount = Number(e.amount) || 0;
+  var ap = Number(e.aPersonal) || 0;
+  var bp = Number(e.bPersonal) || 0;
+  var common = Math.max(0, amount - ap - bp);
+  var half = Math.round(common / 2);
+  var aOwe = half + ap;
+  var bOwe = common - half + bp;
+  return {
+    amount: amount, common: common, aOwe: aOwe, bOwe: bOwe,
+    balance: e.payer === "A" ? bOwe : -aOwe   // プラス = B が A に払う
+  };
+}
+function rows() {
+  return S.entries.map(function (e) {
+    var c = calc(e);
+    return Object.assign({}, e, c);
+  });
+}
+
+/* ── PayPay CSV ──────────────────────────────────────────── */
+function splitLine(line) {
+  var out = [], cur = "", q = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (c === '"') {
+      if (q && line[i + 1] === '"') { cur += '"'; i++; } else { q = !q; }
+    } else if (c === "," && !q) { out.push(cur); cur = ""; } else { cur += c; }
+  }
+  out.push(cur);
+  return out.map(function (s) { return s.trim(); });
+}
+function toNum(s) {
+  var n = Number(String(s || "").replace(/[¥,円\s]/g, ""));
+  return isFinite(n) ? n : 0;
+}
+var SKIP = ["送金", "チャージ", "受け取", "ポイント", "出金", "返金", "キャンセル"];
+function parsePayPay(text) {
+  var lines = text.split(/\r?\n/).filter(function (l) { return l.trim() !== ""; });
+  if (!lines.length) return { rows: [], error: "貼り付けられたデータが空です。" };
+  var headIdx = -1;
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].indexOf("取引日") >= 0 || lines[i].indexOf("出金") >= 0) { headIdx = i; break; }
+  }
+  if (headIdx < 0) headIdx = 0;
+  var head = splitLine(lines[headIdx]);
+  function find() {
+    var keys = Array.prototype.slice.call(arguments);
+    for (var j = 0; j < head.length; j++) {
+      for (var k = 0; k < keys.length; k++) if (head[j].indexOf(keys[k]) >= 0) return j;
+    }
+    return -1;
+  }
+  var iDate = find("取引日", "日付"), iOut = find("出金"),
+      iKind = find("取引内容"), iShop = find("取引先"), iTxn = find("取引番号");
+  if (iDate < 0 || iOut < 0) {
+    return { rows: [], error: "列が読み取れません。PayPayの取引履歴CSVを、見出し行ごと貼り付けてください。" };
+  }
+  var out = [];
+  for (var r = headIdx + 1; r < lines.length; r++) {
+    var c = splitLine(lines[r]);
+    if (c.length < 2 || !c[iDate]) continue;
+    var amount = toNum(c[iOut]);
+    var kind = iKind >= 0 ? c[iKind] : "";
+    var shop = iShop >= 0 ? c[iShop] : "";
+    var hit = SKIP.filter(function (s) { return kind.indexOf(s) >= 0 || shop.indexOf(s) >= 0; })[0];
+    out.push({
+      key: uid(),
+      date: String(c[iDate]).replace(/\//g, "-").slice(0, 10),
+      title: shop || kind || "（店名なし）",
+      amount: amount,
+      txnId: iTxn >= 0 ? c[iTxn] : "",
+      include: amount > 0 && !hit,
+      reason: amount <= 0 ? "支出ではありません" : (hit ? "送金・チャージ等" : "")
+    });
+  }
+  if (!out.length) return { rows: [], error: "取り込める行が見つかりませんでした。" };
+  return { rows: out, error: "" };
+}
+
+
+/* ─────────────────────────────────────────────────────────
+   ふたりで同期する（Supabase）
+
+   ・端末側の記録が主で、同期は追いつくための仕組みです。
+     設定していなくても、繋がらなくても、アプリは通常どおり動きます。
+   ・同じ記録が両方で編集された場合は、あとから直したほうを残します。
+   ・削除は消さずに印を付けて送ります。そうしないと、
+     相手の端末から古い記録が復活してしまうためです。
+   ───────────────────────────────────────────────────────── */
+function syncReady() {
+  return !!(S.sync.on && S.sync.url && S.sync.key && S.sync.house);
+}
+
+function stampEntry(e) {
+  return Object.assign({}, e, { updatedAt: e.updatedAt || Date.now() });
+}
+
+/* 端末の記録を、送信用の形に直す */
+function toRemote(e) {
+  return {
+    id: e.id, date: e.date, title: e.title, amount: e.amount, payer: e.payer,
+    method: e.method || "", a_personal: e.aPersonal || 0, a_personal_note: e.aPersonalNote || "",
+    b_personal: e.bPersonal || 0, b_personal_note: e.bPersonalNote || "",
+    txn_id: e.txnId || "", settled: !!e.settled, settled_on: e.settledOn || "",
+    source: e.source || "manual", deleted: !!e.deleted,
+    updated_at: new Date(e.updatedAt || Date.now()).toISOString()
+  };
+}
+
+/* 受け取った形を、端末の記録に直す */
+function fromRemote(r) {
+  return {
+    id: r.id, date: r.date, title: r.title, amount: r.amount, payer: r.payer,
+    method: r.method || "", aPersonal: r.a_personal || 0, aPersonalNote: r.a_personal_note || "",
+    bPersonal: r.b_personal || 0, bPersonalNote: r.b_personal_note || "",
+    txnId: r.txn_id || "", settled: !!r.settled, settledOn: r.settled_on || "",
+    source: r.source || "manual", deleted: !!r.deleted,
+    updatedAt: new Date(r.updated_at).getTime()
+  };
+}
+
+function callSync(fn, body) {
+  var base = String(S.sync.url).replace(/\/+$/, "");
+  return fetch(base + "/rest/v1/rpc/" + fn, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": S.sync.key,
+      "Authorization": "Bearer " + S.sync.key
+    },
+    body: JSON.stringify(body)
+  }).then(function (res) {
+    if (!res.ok) {
+      return res.text().then(function (t) {
+        var lower = String(t || "").toLowerCase();
+        throw new Error(
+          lower.indexOf("unknown key") >= 0
+            ? "共有キーが違うようです。SQLの実行結果に出た値と見比べてください。"
+          : lower.indexOf("too many") >= 0
+            ? "記録が多すぎて送れませんでした。古い記録を整理してください。"
+          : res.status === 404
+            ? "設定を実行できていないようです。SQLの貼り付けが済んでいるかご確認ください。"
+          : res.status === 401 || res.status === 403
+            ? "APIキーが違うようです。anon public のキーをご確認ください。"
+            : "同期できませんでした（" + res.status + "）");
+      });
+    }
+    return res.json();
+  });
+}
+
+/* 端末と相手の記録を突き合わせる。あとから直したほうを残す */
+function merge(remote) {
+  var byId = {};
+  S.entries.forEach(function (e) { byId[e.id] = stampEntry(e); });
+
+  (remote.entries || []).forEach(function (r) {
+    var incoming = fromRemote(r);
+    var mine = byId[incoming.id];
+    if (!mine || incoming.updatedAt > mine.updatedAt) byId[incoming.id] = incoming;
+  });
+
+  S.entries = Object.keys(byId).map(function (k) { return byId[k]; })
+    .filter(function (e) { return !e.deleted; })
+    .sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+
+  // 表示名は、あとから変えたほうを採用する
+  var remoteAt = remote.namesUpdatedAt ? new Date(remote.namesUpdatedAt).getTime() : 0;
+  if (remote.names && remoteAt > (S.namesUpdatedAt || 0)) {
+    S.names = { A: remote.names.A, B: remote.names.B };
+    S.namesUpdatedAt = remoteAt;
+  }
+}
+
+var syncTimer = null;
+function scheduleSync() {
+  if (!syncReady()) return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(function () { runSync(true); }, 1200);
+}
+
+function runSync(quiet) {
+  if (!syncReady()) return Promise.resolve();
+  UI.syncing = true; UI.syncErr = "";
+  if (!quiet) render(); else paintStatus();
+
+  // 削除済みも含めて送る（相手の端末から復活させないため）
+  var payload = S.entries.concat(S.trash || []).map(function (e) { return toRemote(stampEntry(e)); });
+
+  return callSync("warikan_push", {
+    p_key: S.sync.house,
+    p_entries: payload,
+    p_name_a: S.names.A,
+    p_name_b: S.names.B,
+    p_names_updated: new Date(S.namesUpdatedAt || Date.now()).toISOString()
+  }).then(function (data) {
+    merge(data || {});
+    S.trash = [];
+    UI.syncing = false;
+    UI.lastSync = whenLabel(new Date().toISOString());
+    UI.syncErr = "";
+    persistOnly();
+    render();
+  }).catch(function (err) {
+    UI.syncing = false;
+    UI.syncErr = err && err.message ? err.message : "同期できませんでした。";
+    render();
+  });
+}
+
+/* ── 保存 ────────────────────────────────────────────────── */
+function persistOnly() {
+  UI.saving = true;
+  paintStatus();
+  return Store.save({
+    names: S.names, entries: S.entries, book: S.book,
+    sync: S.sync, namesUpdatedAt: S.namesUpdatedAt, trash: S.trash || []
+  }).then(function () {
+    UI.saving = false; UI.saveError = false; paintStatus();
+  }).catch(function () {
+    UI.saving = false; UI.saveError = true; render();
+  });
+}
+function persist() {
+  persistOnly();
+  scheduleSync();
+}
+function change(fn) {
+  fn();
+  S.book.pending = S.book.pending + 1;
+  persist();
+  render();
+}
+
+/* ── 表データ（CSVとコピーで共用） ───────────────────────── */
+function sheetHeader() {
+  return ["日付", "内容", "金額", "払った人", "支払手段",
+    S.names.A + "の個人分", "中身", S.names.B + "の個人分", "中身",
+    "共通分", S.names.A + "の負担", S.names.B + "の負担", "貸し借り(＋=B→A)",
+    "精算済み", "精算日", "取引番号"];
+}
+function sheetRows() {
+  return rows().map(function (r) {
+    return [r.date, r.title, r.amount, r.payer === "A" ? S.names.A : S.names.B, r.method || "",
+      r.aPersonal || 0, r.aPersonalNote || "", r.bPersonal || 0, r.bPersonalNote || "",
+      r.common, r.aOwe, r.bOwe, r.balance,
+      r.settled ? "済" : "", r.settledOn || "", r.txnId || ""];
+  });
+}
+function table() { return [sheetHeader()].concat(sheetRows()); }
+
+function markExported() {
+  S.book = { lastExportAt: new Date().toISOString(), pending: 0 };
+  UI.justSettled = false;
+  persist();
+}
+function exportCsv() {
+  var csv = table().map(function (line) {
+    return line.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(",");
+  }).join("\n");
+  var url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+  var a = document.createElement("a");
+  a.href = url; a.download = "warikan-" + today() + ".csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  markExported();
+  render();
+}
+function copyForSheet() {
+  var tsv = table().map(function (line) {
+    return line.map(function (c) { return String(c).replace(/[\t\n\r]/g, " "); }).join("\t");
+  }).join("\n");
+  function ok() {
+    UI.copied = true; UI.copyFallback = "";
+    markExported(); render();
+    setTimeout(function () { UI.copied = false; render(); }, 2600);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(tsv).then(ok).catch(function () {
+      UI.copyFallback = tsv; UI.tab = "set"; render();
+    });
+  } else {
+    UI.copyFallback = tsv; UI.tab = "set"; render();
+  }
+}
+
+/* ── フォーム ────────────────────────────────────────────── */
+function blankForm() {
+  return { date: today(), title: "", amount: "", payer: "A", method: "現金",
+    aPersonal: "", aPersonalNote: "", bPersonal: "", bPersonalNote: "" };
+}
+function toForm(e) {
+  return { date: e.date, title: e.title, amount: String(e.amount), payer: e.payer, method: e.method || "現金",
+    aPersonal: e.aPersonal ? String(e.aPersonal) : "", aPersonalNote: e.aPersonalNote || "",
+    bPersonal: e.bPersonal ? String(e.bPersonal) : "", bPersonalNote: e.bPersonalNote || "" };
+}
+function validate(f) {
+  if (!f.title.trim()) return "何に使ったかを入れてください。";
+  var amount = Number(f.amount);
+  if (!amount || amount <= 0) return "金額を入れてください。";
+  var ap = Number(f.aPersonal) || 0, bp = Number(f.bPersonal) || 0;
+  if (ap < 0 || bp < 0) return "個人分にマイナスは入れられません。";
+  if (ap + bp > amount) return "個人分の合計が金額を超えています。";
+  return "";
+}
+function fromForm(f) {
+  return { date: f.date, title: f.title.trim(), amount: Number(f.amount), payer: f.payer, method: f.method,
+    aPersonal: Number(f.aPersonal) || 0, aPersonalNote: f.aPersonalNote.trim(),
+    bPersonal: Number(f.bPersonal) || 0, bPersonalNote: f.bPersonalNote.trim() };
+}
+
+/* ── 部品のHTML ──────────────────────────────────────────── */
+function field(label, inner, hint) {
+  return '<label class="field"><span class="label">' + esc(label) + '</span>' + inner +
+    (hint ? '<span class="hint">' + esc(hint) + '</span>' : '') + '</label>';
+}
+function input(name, value, opts) {
+  opts = opts || {};
+  return '<span class="control">' +
+    (opts.prefix ? '<span class="prefix">' + opts.prefix + '</span>' : '') +
+    '<input data-input="' + name + '" type="' + (opts.type || "text") + '" ' +
+    (opts.inputmode ? 'inputmode="' + opts.inputmode + '" class="num" ' : '') +
+    'value="' + esc(value) + '" placeholder="' + esc(opts.placeholder || "") + '"></span>';
+}
+function seg(name, options, value) {
+  return '<div class="seg">' + options.map(function (o) {
+    var val = typeof o === "string" ? o : o.value;
+    var lbl = typeof o === "string" ? o : o.label;
+    return '<button type="button" data-seg="' + name + '" data-value="' + esc(val) + '"' +
+      (val === value ? ' class="on"' : '') + '>' + esc(lbl) + '</button>';
+  }).join("") + '</div>';
+}
+function catIcon(m, small) {
+  var mt = meta(m);
+  return '<span class="cat' + (small ? ' sm' : '') + '" style="background:' + mt.soft + ';color:' + mt.color + '">' +
+    icon(mt.icon, small ? 18 : 22) + '</span>';
+}
+function btn(label, opts) {
+  opts = opts || {};
+  return '<button type="button" class="btn btn-' + (opts.variant || "primary") +
+    (opts.block ? ' block' : '') + (opts.size ? ' ' + opts.size : '') + '"' +
+    (opts.action ? ' data-act="' + opts.action + '"' : '') +
+    (opts.id ? ' data-id="' + opts.id + '"' : '') +
+    (opts.disabled ? ' disabled' : '') + '>' +
+    (opts.icon ? icon(opts.icon, opts.size === "sm" ? 18 : 20) : '') + esc(label) + '</button>';
+}
+
+/* ── 画面 ────────────────────────────────────────────────── */
+function previewHtml(f) {
+  var r = calc({ amount: Number(f.amount) || 0, aPersonal: Number(f.aPersonal) || 0,
+    bPersonal: Number(f.bPersonal) || 0, payer: f.payer });
+  if (!r.amount) return '<div id="preview"></div>';
+  var dir = r.balance === 0 ? "—" :
+    yen(Math.abs(r.balance)) + " " + (r.balance > 0 ? S.names.B + "→" + S.names.A : S.names.A + "→" + S.names.B);
+  return '<div id="preview"><div class="preview">' +
+    '<div class="line"><span>共通分</span><b class="num">' + yen(r.common) + '</b></div>' +
+    '<div class="line"><span>' + esc(S.names.A) + 'の負担</span><b class="num">' + yen(r.aOwe) + '</b></div>' +
+    '<div class="line"><span>' + esc(S.names.B) + 'の負担</span><b class="num">' + yen(r.bOwe) + '</b></div>' +
+    '<div class="line total"><span style="color:var(--text-primary)">この1件の精算</span>' +
+    '<b class="num" style="color:var(--brand-strong)">' + esc(dir) + '</b></div>' +
+    '</div></div>';
+}
+
+function formHtml(f) {
+  return '<div class="stack">' +
+    field("何に使いましたか？", input("title", f.title, { placeholder: "スーパー、ドラッグストア など" })) +
+    '<div class="grid2">' +
+      field("金額", input("amount", f.amount, { inputmode: "numeric", prefix: "¥", placeholder: "4,000" })) +
+      field("日付", input("date", f.date, { type: "date" })) +
+    '</div>' +
+    '<div><span class="label">立て替えた人</span>' +
+      seg("payer", [{ value: "A", label: S.names.A }, { value: "B", label: S.names.B }], f.payer) + '</div>' +
+    '<div><span class="label">支払手段</span><div class="chips">' +
+      METHODS.map(function (m) {
+        return '<button type="button" class="chip' + (f.method === m ? ' on' : '') + '" data-method="' + esc(m) + '">' +
+          icon(meta(m).icon, 18) + esc(m) + '</button>';
+      }).join("") + '</div></div>' +
+    '<div class="card"><div style="font-size:15px;font-weight:700;margin-bottom:4px">個人的なものが混ざっていたら</div>' +
+      '<p class="muted" style="margin:0 0 14px">その金額を先に引いてから折半します。無ければ空欄のままで大丈夫です。</p>' +
+      '<div class="grid2">' +
+        field(S.names.A + "の個人分", input("aPersonal", f.aPersonal, { inputmode: "numeric", prefix: "¥", placeholder: "0" })) +
+        field("その中身", input("aPersonalNote", f.aPersonalNote, { placeholder: "化粧品" })) +
+        field(S.names.B + "の個人分", input("bPersonal", f.bPersonal, { inputmode: "numeric", prefix: "¥", placeholder: "0" })) +
+        field("その中身", input("bPersonalNote", f.bPersonalNote, { placeholder: "雑誌" })) +
+      '</div></div>' +
+    previewHtml(f) +
+    (UI.formError ? '<p class="err">' + esc(UI.formError) + '</p>' : '') +
+    '</div>';
+}
+
+function entryHtml(r) {
+  var side = r.payer === "A" ? "var(--blue-600)" : "var(--navy-700)";
+  var dir = r.balance > 0 ? S.names.B + " → " + S.names.A : S.names.A + " → " + S.names.B;
+  var h = '<div class="entry">' + catIcon(r.method) +
+    '<div class="body"><div class="title">' + esc(r.title) + '</div>' +
+    '<div class="sub"><span>' + esc(jpDate(r.date)) + '</span><span aria-hidden="true">·</span>' +
+    '<span style="color:' + side + ';font-weight:600">' + esc(S.names[r.payer]) + 'が立替</span></div></div>' +
+    '<div class="right"><div class="amt num">' + yen(r.amount) + '</div>' +
+    '<div class="bal num"' + (r.balance === 0 ? ' style="color:var(--text-tertiary)"' : '') + '>' +
+    (r.balance === 0 ? "—" : esc(yen(Math.abs(r.balance)) + " " + dir)) + '</div></div></div>';
+
+  if (r.aPersonal > 0 || r.bPersonal > 0) {
+    var parts = [];
+    if (r.aPersonal > 0) parts.push(S.names.A + "の個人分 " + yen(r.aPersonal) + (r.aPersonalNote ? "（" + r.aPersonalNote + "）" : ""));
+    if (r.bPersonal > 0) parts.push(S.names.B + "の個人分 " + yen(r.bPersonal) + (r.bPersonalNote ? "（" + r.bPersonalNote + "）" : ""));
+    h += '<div class="personal">' + esc(parts.join(" / ")) + '</div>';
+  }
+  if (r.settled) {
+    h += '<div style="margin-top:10px"><span class="badge">精算済み' +
+      (r.settledOn ? " " + esc(jpDate(r.settledOn)) : "") + '</span></div>';
+  }
+  if (UI.deleteId === r.id) {
+    h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)">' +
+      '<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:var(--danger-500)">この記録を削除します。元に戻せません。</p>' +
+      '<div style="display:flex;gap:8px">' +
+      btn("削除する", { variant: "danger", size: "sm", action: "del", id: r.id }) +
+      btn("やめる", { variant: "quiet", size: "sm", action: "delCancel" }) + '</div></div>';
+  } else {
+    h += '<div class="acts">' +
+      '<button data-act="edit" data-id="' + r.id + '">' + icon("pencil", 16) + '編集</button>' +
+      '<button data-act="toggle" data-id="' + r.id + '" class="' + (r.settled ? '' : 'brand') + '">' +
+      icon(r.settled ? "undo" : "check", 16) + (r.settled ? "未精算に戻す" : "精算済みに") + '</button>' +
+      '<span class="spacer"></span>' +
+      '<button data-act="askDel" data-id="' + r.id + '" class="danger">' + icon("trash", 16) + '削除</button>' +
+      '</div>';
+  }
+  return h;
+}
+
+function homeHtml() {
+  var all = rows();
+  if (!all.length) {
+    return '<div class="empty"><span class="icon">' + icon("list", 32) + '</span>' +
+      '<h3>最初の1件を記録しましょう</h3>' +
+      '<p>現金やクレカで払った分は「追加」から、かんたんに記録できます。<br>PayPay分は月末に「取込」でまとめて。</p>' +
+      btn("記録を追加する", { icon: "plus", action: "goAdd" }) +
+      '<div style="margin-top:14px">' +
+      '<button type="button" class="toggle-link" data-act="goGuide">はじめての方はこちら（使い方）</button>' +
+      '</div></div>';
+  }
+  var shown = UI.filter === "未精算" ? all.filter(function (r) { return !r.settled; }) : all;
+  var h = seg("filter", ["未精算", "すべて"], UI.filter) + '<div style="height:18px"></div>';
+  if (!shown.length) {
+    h += '<p class="muted" style="text-align:center;padding:32px 0">未精算の記録はありません。</p>';
+    return h;
+  }
+  h += '<div class="stack" style="gap:12px">' + shown.map(function (r) {
+    if (UI.editId === r.id) {
+      return '<div class="card" style="padding:18px"><div class="stack">' +
+        '<div style="font-size:15px;font-weight:700">記録を編集</div>' + formHtml(UI.form) +
+        '<div style="display:flex;gap:10px">' +
+        btn("保存する", { block: true, action: "saveEdit", id: r.id }) +
+        btn("やめる", { variant: "quiet", action: "cancelEdit" }) + '</div></div></div>';
+    }
+    return '<div class="card' + (r.settled ? ' settled' : '') + '" style="padding:14px">' + entryHtml(r) + '</div>';
+  }).join("") + '</div>';
+  return h;
+}
+
+function importHtml() {
+  var h = '<div class="stack">' +
+    '<div><h2 class="sect">PayPayの履歴を取り込む</h2>' +
+    '<p class="muted">PayPayアプリの［取引履歴］からダウンロードしたCSVファイルを、そのまま読み込めます。送金やチャージの行は自動で除きます。</p></div>';
+
+  h += '<div class="drop" id="drop">' +
+    '<span class="dicon">' + icon("import", 26) + '</span>' +
+    '<span class="dmain">' + (UI.reading ? "読み込んでいます…" : "CSVファイルを選ぶ") + '</span>' +
+    '<span class="dsub">パソコンならドラッグ＆ドロップでも取り込めます</span>' +
+    '</div>' +
+    '<input type="file" id="file" accept=".csv,text/csv,text/plain" style="display:none">';
+
+  if (UI.fileName) {
+    h += '<div class="filename">' + icon("check", 18) + '<span>' + esc(UI.fileName) + '</span></div>';
+  }
+
+  h += '<div style="text-align:center">' +
+    '<button type="button" class="toggle-link" data-act="togglePaste">' +
+    (UI.showPaste ? "貼り付け欄を閉じる" : "ファイルではなく、貼り付けて取り込む") + '</button></div>';
+
+  if (UI.showPaste) {
+    h += '<textarea class="ta" id="csv" style="height:150px" placeholder="取引日,出金金額（円）,入金金額（円）,…">' + esc(UI.csvText) + '</textarea>' +
+      btn("貼り付けた内容を読み取る", { block: true, variant: "secondary", action: "parse" });
+  }
+
+  h += '<div><span class="label">この履歴は誰のものですか？</span>' +
+    seg("importPayer", [{ value: "A", label: S.names.A }, { value: "B", label: S.names.B }], UI.importPayer) + '</div>';
+
+  if (UI.parseError) h += '<p class="err">' + esc(UI.parseError) + '</p>';
+
+  if (UI.parsed) {
+    var picked = UI.parsed.filter(function (r) { return r.include; }).length;
+    h += '<h2 class="sect" style="margin-top:8px">' + picked + '件を取り込みます　' +
+      '<span style="font-size:13px;font-weight:600;color:var(--text-tertiary)">全' + UI.parsed.length + '件</span></h2>' +
+      '<div class="card list">' + UI.parsed.map(function (r) {
+        return '<label class="item' + (r.include ? '' : ' off') + '">' +
+          '<input type="checkbox" data-flip="' + r.key + '"' + (r.include ? ' checked' : '') + '>' +
+          '<span class="t"><b>' + esc(r.title) + '</b><small>' + esc(jpDate(r.date) + (r.reason ? " · " + r.reason : "")) + '</small></span>' +
+          '<span class="num" style="font-size:14px;font-weight:700">' + yen(r.amount) + '</span></label>';
+      }).join("") + '</div>' +
+      btn("チェックした" + picked + "件を追加する", { block: true, action: "take", disabled: picked === 0 }) +
+      '<p class="muted">取り込んだあと、個人的なものが混ざっていた行は一覧の「編集」から直せます。</p>';
+  }
+  return h + '</div>';
+}
+
+/* ── CSVファイルの読み込み ─────────────────────────────────
+   PayPayのCSVは Shift_JIS で出力されることが多いため、
+   UTF-8 で読んで文字化けが出たら読み直します。
+   ───────────────────────────────────────────────────────── */
+function readCsvFile(file) {
+  if (!file) return;
+  UI.reading = true; UI.parseError = ""; render();
+
+  function done(text) {
+    UI.reading = false;
+    UI.fileName = file.name;
+    UI.csvText = text;
+    var res = parsePayPay(text);
+    UI.parseError = res.error;
+    UI.parsed = res.error ? null : res.rows;
+    render();
+  }
+  function fail(msg) {
+    UI.reading = false; UI.parsed = null;
+    UI.parseError = msg;
+    render();
+  }
+
+  var r1 = new FileReader();
+  r1.onload = function () {
+    var text = String(r1.result || "");
+    // 置換文字が混ざっていたら Shift_JIS として読み直す
+    if (text.indexOf("\uFFFD") >= 0) {
+      var r2 = new FileReader();
+      r2.onload = function () { done(String(r2.result || "")); };
+      r2.onerror = function () { done(text); };
+      try { r2.readAsText(file, "Shift_JIS"); } catch (e) { done(text); }
+      return;
+    }
+    done(text);
+  };
+  r1.onerror = function () { fail("ファイルを読み込めませんでした。もう一度お試しください。"); };
+  r1.readAsText(file, "UTF-8");
+}
+
+
+/* ── 使い方ページ ────────────────────────────────────────── */
+function guideHtml() {
+  var where = Store.mode === "local" ? "このブラウザの中"
+    : Store.mode === "artifact" ? "Claudeの保存領域"
+    : "メモリのみ（閉じると消えます）";
+
+  function card(no, title, inner) {
+    return '<div class="card md" style="padding:18px">' +
+      '<h3>' + (no ? '<span class="n">' + no + '</span>' : '') + esc(title) + '</h3>' + inner + '</div>';
+  }
+
+  var h = '<div class="guide stack" style="gap:14px">';
+
+  h += '<div>' +
+    '<h2 class="sect" style="font-size:20px;margin-bottom:6px">このアプリについて</h2>' +
+    '<p class="lead">ふたりで暮らすときの立て替えを記録して、いくら返せばいいかを出すためのものです。' +
+    'レシートに個人的な買い物が混ざっていても、その分を引いてから折半します。</p>' +
+    '</div>';
+
+  /* 1. 全体の流れ */
+  h += card(1, "ふだんの流れ",
+    '<div class="flow">' +
+    '<div class="step"><span class="dot">1</span><span>買い物をしたら、<b>追加</b>から1件ずつ記録します。現金やクレジットカードで払った分が対象です。</span></div>' +
+    '<div class="step"><span class="dot">2</span><span>PayPayで払った分は毎回入れなくて構いません。月末に<b>取込</b>でCSVからまとめて入れられます。</span></div>' +
+    '<div class="step"><span class="dot">3</span><span>画面のいちばん上に、いまの貸し借りが出ます。どちらがいくら返せばよいかがひと目で分かります。</span></div>' +
+    '<div class="step"><span class="dot">4</span><span>実際に送金したら<b>精算する</b>を押します。未精算がすべて片付き、貸し借りがゼロに戻ります。</span></div>' +
+    '<div class="step"><span class="dot">5</span><span>精算のあと、<b>設定</b>から控えをスプレッドシートに残しておきます。</span></div>' +
+    '</div>');
+
+  /* 2. 記録の追加 */
+  h += card(2, "記録を追加する",
+    '<p><b>追加</b>タブで、使った先と金額、日付、立て替えた人、支払手段を入れます。' +
+    '入力していくと画面の下に折半の結果が出るので、その場で確かめられます。</p>' +
+    '<p>記録したあとも日付・立替者・支払手段はそのまま残るので、同じ日の買い物を続けて入れるときは金額と内容だけで足ります。</p>' +
+    '<div class="note info">まちがえて記録しても、一覧の<b>編集</b>からいつでも直せます。</div>');
+
+  /* 3. 個人分 */
+  h += card(3, "個人的な買い物が混ざったとき",
+    '<p>ひとつのレシートに共通のものと個人的なものが混ざることがあります。' +
+    'そのときは<b>個人分</b>に金額を入れてください。先にその分を引いてから、残りだけを折半します。</p>' +
+    '<div class="calc">' +
+      '<div class="row"><span>合計</span><span class="num">¥4,000</span></div>' +
+      '<div class="row"><span>' + esc(S.names.A) + 'の個人分（化粧品）</span><span class="num">− ¥1,000</span></div>' +
+      '<div class="row"><span>ふたりの共通分</span><span class="num">¥3,000 → ひとり ¥1,500</span></div>' +
+      '<div class="row total"><span>' + esc(S.names.A) + 'の負担</span><span class="num">¥2,500</span></div>' +
+      '<div class="row total" style="border:none;margin:0;padding:0"><span>' + esc(S.names.B) + 'の負担</span><span class="num">¥1,500</span></div>' +
+    '</div>' +
+    '<p style="margin-top:10px">「その中身」に品名を書いておくと、あとで見返したときに何の分だったか分かります。</p>');
+
+  /* 4. PayPay取込 */
+  h += card(4, "PayPayの履歴を取り込む",
+    '<p>PayPayアプリの［取引履歴］からCSVをダウンロードし、<b>取込</b>タブでそのファイルを選びます。' +
+    'パソコンならドラッグ＆ドロップでも取り込めます。</p>' +
+    '<ul>' +
+    '<li>送金・チャージ・ポイント・返金の行は、自動でチェックを外します</li>' +
+    '<li>取り込みたくない行は、手でチェックを外せます</li>' +
+    '<li>誰の履歴かを選んでから追加してください</li>' +
+    '</ul>' +
+    '<div class="note">取り込んだ直後は個人分がゼロの状態です。個人的な買い物が混ざっていた行は、一覧の<b>編集</b>から個人分を入れてください。</div>');
+
+  /* 5. 精算 */
+  h += card(5, "精算する",
+    '<p>いちばん上のカードに、どちらがいくら返せばよいかが出ています。' +
+    '実際に送金や手渡しを済ませてから<b>精算する</b>を押してください。押した時点で未精算の記録がすべて精算済みになります。</p>' +
+    '<p>1件だけ精算したいときは、その記録の<b>精算済みに</b>から個別に切り替えられます。もとに戻すこともできます。</p>' +
+    '<div class="note warn">このアプリはお金を動かしません。送金はPayPayや銀行アプリで行い、そのあとにこのボタンを押す、という順番です。</div>');
+
+  /* 6. 控え */
+  h += card(6, "控えを残す",
+    '<p>記録は' + esc(where) + 'に保存されます。ただし、ブラウザのデータを消したり端末を買い替えたりすると失われます。' +
+    'そのため、ときどき<b>設定 → 控えを残す</b>から外に写しておくことをおすすめします。</p>' +
+    '<div class="kv"><span class="k">コピー</span><span class="v">スプレッドシートを開いてA1を選び、貼り付けるだけです。いちばん手軽です。</span></div>' +
+    '<div class="kv"><span class="k">CSV</span><span class="v">ファイルとして手元に保存します。メールに添付したいときなどに。</span></div>' +
+    '<p style="margin-top:10px">精算が終わったタイミングで画面にお知らせが出ます。そこからも控えを残せます。</p>' +
+    '<div class="note info" style="margin-top:12px">この控えのスプレッドシートを相手と共有すると、ふたりで明細を確認できます。共有相手は「特定のユーザー」に絞ってください。</div>');
+
+  /* 7. ふたりで使う */
+  h += card(7, "ふたりで使う",
+    '<p>使い方は2つあります。どちらでも構いません。</p>' +
+    '<div class="kv"><span class="k">同期する</span><span class="v">設定でSupabaseをつなぐと、どちらが記録しても両方の端末に反映されます。相手の入力もそのまま見えます。</span></div>' +
+    '<div class="kv"><span class="k">記録係を決める</span><span class="v">つながずに、どちらか一方だけが入力します。相手には控えのスプレッドシートを共有して見てもらいます。</span></div>' +
+    '<p style="margin-top:10px">同期を使う場合は、<b>プロジェクトURL・APIキー・共有キー</b>の3つを、ふたりの端末に同じものを入れてください。これが揃った端末どうしだけがつながります。</p>' +
+    '<div class="note info">同期していても、記録はまずこの端末に保存されます。' +
+    '電波が届かないところでも、つながらないときでも、記録と計算はふだんどおり使えます。あとから自動で追いつきます。</div>' +
+    '<p style="margin-top:10px">同じ記録をふたりが同時に直した場合は、<b>あとから直したほうが残ります</b>。' +
+    '削除も相手の端末に伝わるので、片方で消した記録が復活することはありません。</p>');
+
+  /* 8. 保存とプライバシー */
+  h += card(8, "保存先とプライバシー",
+    '<div class="kv"><span class="k">保存先</span><span class="v">' + esc(where) + '</span></div>' +
+    '<div class="kv"><span class="k">通信</span><span class="v">' +
+    (S.sync.on ? '同期を有効にしているため、記録はご自身のSupabaseにも保存されます。' : '同期を使っていないので、記録はどこにも送信されません。') +
+    '</span></div>' +
+    '<div class="kv"><span class="k">共有</span><span class="v">同期を使えば端末どうしで揃います。使わない場合は、控えのスプレッドシートを共有してください。</span></div>' +
+    '<div class="kv"><span class="k">共有キー</span><span class="v">これを知っている人だけが記録を読み書きできます。人目に触れる場所に貼らないでください。</span></div>' +
+    (Store.mode === "memory"
+      ? '<div class="note warn" style="margin-top:12px">いまの環境では保存が使えません。閉じると記録が消えるため、こまめに控えを残してください。</div>'
+      : '') +
+    (Store.mode === "local"
+      ? '<div class="note" style="margin-top:12px">別のブラウザやシークレットウィンドウで開くと、記録は引き継がれません。いつも同じブラウザでお使いください。</div>'
+      : ''));
+
+  /* 9. 困ったとき */
+  h += card(9, "困ったとき",
+    '<div class="kv"><span class="k">数字が合わない</span><span class="v">一覧が「未精算」で絞り込まれていないか確かめてください。「すべて」に切り替えると精算済みも含めて見られます。</span></div>' +
+    '<div class="kv"><span class="k">店名が文字化け</span><span class="v">CSVを読み込み直してみてください。文字コードは自動で判別しますが、まれに外すことがあります。</span></div>' +
+    '<div class="kv"><span class="k">取り込めない</span><span class="v">PayPayのCSVを、見出しの行を含めたまま使ってください。加工したファイルだと列を読み取れないことがあります。</span></div>' +
+    '<div class="kv"><span class="k">コピーできない</span><span class="v">自動コピーが使えない環境では、代わりに文字の入った枠が出ます。全選択してコピーしてください。</span></div>' +
+    '<div class="kv"><span class="k">全部消したい</span><span class="v">設定のいちばん下にあります。元に戻せないので、先に控えを残しておいてください。</span></div>');
+
+  /* 9. 用語 */
+  h += card(0, "画面に出てくる言葉",
+    '<div class="kv"><span class="k">共通分</span><span class="v">合計から個人分を引いた、ふたりで分ける金額です。</span></div>' +
+    '<div class="kv"><span class="k">負担</span><span class="v">その1件で、それぞれが実際に負うべき金額です。</span></div>' +
+    '<div class="kv"><span class="k">貸し借り</span><span class="v">立て替えた額と負担額の差です。まだ返していない分を指します。</span></div>' +
+    '<div class="kv"><span class="k">未精算</span><span class="v">まだ送金が済んでいない記録です。上のカードの金額は、この分だけを集計しています。</span></div>');
+
+  h += '</div>';
+  return h;
+}
+
+function settingsHtml() {
+  var all = rows();
+  var target = UI.scope === "未精算" ? all.filter(function (r) { return !r.settled; }) : all;
+  var sum = {};
+  ["A", "B"].forEach(function (p) {
+    METHODS.forEach(function (m) {
+      sum[p + m] = target.filter(function (r) { return r.payer === p && r.method === m; })
+        .reduce(function (s, r) { return s + r.amount; }, 0);
+    });
+  });
+
+  var h = '<div class="stack lg">';
+
+  h += '<section><h2 class="sect">表示名</h2><div class="grid2">' +
+    field("Aさん", input("nameA", S.names.A)) + field("Bさん", input("nameB", S.names.B)) +
+    '</div></section>';
+
+  h += '<section><h2 class="sect">ふたりで同期する</h2><div class="card" style="display:grid;gap:12px">' +
+    '<p class="muted" style="margin:0">同じ3つを相手の端末にも入れると、どちらが記録しても両方に反映されます。' +
+    '設定しなければ、この端末だけで動きます。</p>' +
+    field("プロジェクトURL", input("syncUrl", S.sync.url, { placeholder: "https://xxxx.supabase.co" })) +
+    field("APIキー（anon public）", input("syncKey", S.sync.key, { placeholder: "eyJ… で始まる長い文字列" })) +
+    field("共有キー", input("syncHouse", S.sync.house, { placeholder: "SQLの実行結果に出たUUID" })) +
+    '<div style="display:flex;align-items:center;gap:12px">' +
+      '<span style="flex:1;font-size:14px;font-weight:700">同期を有効にする</span>' +
+      '<button type="button" class="sw' + (S.sync.on ? ' on' : '') + '" data-act="toggleSync" role="switch" ' +
+      'aria-checked="' + (S.sync.on ? 'true' : 'false') + '"><span class="knob"></span></button>' +
+    '</div>' +
+    btn(UI.syncing ? "同期しています…" : "いま同期する",
+        { block: true, variant: "secondary", action: "syncNow", icon: "sync",
+          disabled: UI.syncing || !(S.sync.url && S.sync.key && S.sync.house) }) +
+    btn(UI.invited ? "コピーしました" : "相手を招待するリンクを作る",
+        { block: true, variant: "quiet", action: "invite", icon: UI.invited ? "check" : "copy",
+          disabled: !(S.sync.url && S.sync.key && S.sync.house) }) +
+    (UI.inviteUrl
+      ? '<textarea class="ta" readonly style="height:80px;font-size:12px;background:var(--surface-sunken)">' +
+        esc(UI.inviteUrl) + '</textarea>' +
+        '<div class="note warn" style="font-size:13px">このリンクには鍵が入っています。' +
+        '相手だけに届く方法で送り、SNSなど人目に触れる場所には貼らないでください。</div>'
+      : '') +
+    (UI.syncErr
+      ? '<div class="note warn" style="font-size:13px">' + esc(UI.syncErr) + '</div>'
+      : '<div class="muted">' + (UI.lastSync ? esc(UI.lastSync + " に同期しました。") :
+          S.sync.on ? "まだ同期していません。" : "同期は止まっています。") + '</div>') +
+    '</div></section>';
+
+  h += '<section><h2 class="sect">控えを残す</h2><div class="card" style="display:grid;gap:12px">' +
+    '<p class="muted" style="margin:0">スプレッドシートに貼っておけば、このアプリのデータが消えても復旧できます。精算のタイミングで残す習慣がおすすめです。</p>' +
+    btn(UI.copied ? "コピーしました" : "シートに貼る形でコピー",
+        { block: true, action: "copy", icon: UI.copied ? "check" : "copy", disabled: !all.length }) +
+    '<p class="muted" style="margin:-4px 2px 0">スプレッドシートを開いてA1を選び、貼り付けるだけです。</p>' +
+    btn("CSVをダウンロード（" + all.length + "件）",
+        { block: true, variant: "secondary", action: "csv", icon: "download", disabled: !all.length }) +
+    '<div class="muted" style="padding-top:4px">' +
+    (S.book.lastExportAt
+      ? esc("最後に控えを残したのは " + whenLabel(S.book.lastExportAt) +
+        (S.book.pending > 0 ? " ・ そのあと " + S.book.pending + " 回の変更があります" : " ・ そのあとの変更はありません"))
+      : "まだ控えを残していません。") +
+    '</div></div>';
+
+  if (UI.copyFallback) {
+    h += '<div class="card" style="margin-top:12px;display:grid;gap:10px">' +
+      '<div style="font-size:14px;font-weight:700">手動でコピーしてください</div>' +
+      '<p class="muted" style="margin:0">この環境では自動コピーが使えませんでした。下の枠内を全選択してコピーしてください。</p>' +
+      '<textarea class="ta" id="fallback" readonly style="height:140px;background:var(--surface-sunken)">' + esc(UI.copyFallback) + '</textarea>' +
+      btn("閉じる", { variant: "quiet", size: "sm", action: "closeFallback" }) + '</div>';
+  }
+  h += '</section>';
+
+  h += '<section><h2 class="sect">誰が何で立て替えたか</h2>' +
+    seg("scope", ["未精算", "すべて"], UI.scope) + '<div style="height:12px"></div><div class="card list">';
+  ["A", "B"].forEach(function (p) {
+    METHODS.forEach(function (m) {
+      h += '<div class="item" style="cursor:default">' + catIcon(m, true) +
+        '<span class="t" style="font-size:14px;font-weight:600">' + esc(S.names[p]) +
+        '<span style="color:var(--text-tertiary);font-weight:500"> / ' + esc(m) + '</span></span>' +
+        '<span class="num" style="font-size:15px;font-weight:700">' + yen(sum[p + m] || 0) + '</span></div>';
+    });
+  });
+  h += '</div><p class="muted" style="margin:10px 2px 0">' +
+    (UI.scope === "未精算" ? "まだ精算していない分の立替額です。" : "精算済みも含めた累計です。") +
+    '</p></section>';
+
+  h += '<section>';
+  if (UI.confirmReset) {
+    h += '<div class="card" style="background:var(--danger-50)">' +
+      '<p style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--danger-ink)">すべての記録を削除します。元に戻せません。</p>' +
+      '<div style="display:flex;gap:8px">' +
+      btn("削除する", { variant: "danger", size: "sm", action: "reset" }) +
+      btn("やめる", { variant: "quiet", size: "sm", action: "cancelReset" }) + '</div></div>';
+  } else {
+    h += '<button type="button" class="btn btn-ghost sm" data-act="askReset" style="color:var(--danger-500)">すべての記録を削除</button>';
+  }
+  h += '</section>';
+
+  h += '<p class="muted" style="text-align:center">保存先：' +
+    (Store.mode === "local" ? "このブラウザ（他の端末とは共有されません）"
+      : Store.mode === "artifact" ? "Claudeの保存領域"
+      : "メモリのみ。閉じると消えるため、控えを残してください") + '</p>';
+
+  return h + '</div>';
+}
+
+function render() {
+  var app = document.getElementById("app");
+  if (UI.loading) { app.innerHTML = '<p class="muted" style="text-align:center;padding:80px 0">読み込んでいます…</p>'; return; }
+
+  var all = rows();
+  var unsettled = all.filter(function (r) { return !r.settled; });
+  var net = unsettled.reduce(function (s, r) { return s + r.balance; }, 0);
+  var total = unsettled.reduce(function (s, r) { return s + Math.abs(r.balance); }, 0) || 1;
+  var pct = 50 + (net > 0 ? 1 : -1) * Math.min(1, Math.abs(net) / total) * 45;
+  var owedBy = net > 0 ? S.names.B : S.names.A;
+  var owedTo = net > 0 ? S.names.A : S.names.B;
+
+  var h = '<header class="bar"><span class="appname">割り勘</span>' +
+    '<span class="status" id="status">' + (UI.saving ? "保存中…" : UI.saveError ? "未保存" : "自動保存") + '</span></header>';
+
+  // 招待リンクの確認。ほかの操作より先に出す
+  if (UI.pendingInvite) {
+    var host = "";
+    try { host = new URL(UI.pendingInvite.url).host; } catch (e) { host = UI.pendingInvite.url; }
+    var same = UI.pendingInvite.house === S.sync.house && UI.pendingInvite.url === S.sync.url;
+    h += '<main style="padding-top:32px"><div class="card md" style="padding:20px">' +
+      '<h2 class="sect" style="font-size:18px">同期の設定を受け取りました</h2>' +
+      '<p class="muted" style="margin:0 0 14px">この設定を使うと、いまこの端末にある記録' +
+      (S.entries.length ? '（' + S.entries.length + '件）' : '') +
+      'が、下の接続先に送られます。</p>' +
+      '<div class="kv" style="border-bottom:1px solid var(--border-subtle);padding:10px 0;display:flex;gap:10px">' +
+      '<span style="width:80px;font-weight:700;font-size:14px">接続先</span>' +
+      '<span class="num" style="flex:1;font-size:13px;word-break:break-all">' + esc(host) + '</span></div>' +
+      '<div style="display:flex;gap:10px;padding:10px 0 4px">' +
+      '<span style="width:80px;font-weight:700;font-size:14px">共有キー</span>' +
+      '<span class="num" style="flex:1;font-size:12px;word-break:break-all;color:var(--text-secondary)">' +
+      esc(UI.pendingInvite.house) + '</span></div>' +
+      (same
+        ? '<div class="note info" style="margin-top:12px;font-size:13px">いま使っている設定と同じです。</div>'
+        : '<div class="note warn" style="margin-top:12px;font-size:13px">' +
+          '心当たりのないリンクなら、使わないでください。' +
+          '見知らぬ接続先を選ぶと、あなたの記録がその相手に渡ります。</div>') +
+      '<div style="display:flex;gap:10px;margin-top:16px">' +
+      btn("この設定を使う", { block: true, action: "applyInvite" }) +
+      btn("やめる", { variant: "quiet", action: "rejectInvite" }) +
+      '</div></div></main>';
+    app.innerHTML = h;
+    return;
+  }
+
+  if (UI.tab === "guide") {
+    h += '<main style="padding-top:8px">' + guideHtml() + '</main>' + tabbarHtml();
+    app.innerHTML = h;
+    window.scrollTo(0, 0);
+    return;
+  }
+
+  h += '<section class="hero"><div class="gradcard">' +
+    '<div class="overline">いまの貸し借り</div>';
+  if (net === 0) {
+    h += '<div style="margin-top:10px;font-size:28px;font-weight:800;letter-spacing:var(--ls-tight)">貸し借りなし</div>';
+  } else {
+    h += '<div class="dir"><span style="color:rgba(255,255,255,.85)">' + esc(owedBy) + '</span>' +
+      '<span style="display:inline-flex;color:rgba(255,255,255,.7)">' + icon("arrow", 18, 2.4) + '</span>' +
+      '<span>' + esc(owedTo) + '</span></div>' +
+      '<div style="margin-top:4px">' + money(Math.abs(net), 42) + '</div>';
+  }
+  h += '<div class="meter"><div class="track"><span class="mid"></span>' +
+    '<span class="knob" style="left:calc(' + pct + '% - 8px)"></span></div>' +
+    '<div class="ends"><span>' + esc(S.names.B) + ' 払いすぎ</span><span>' + esc(S.names.A) + ' 払いすぎ</span></div>' +
+    '</div></div>';
+
+  h += '<div style="margin-top:16px">' +
+    btn("精算する", { block: true, icon: "check", action: "settle", disabled: !unsettled.length }) + '</div>' +
+    '<p class="muted" style="margin:10px 2px 0">' +
+    (unsettled.length ? "未精算 " + unsettled.length + " 件をまとめて精算済みにします。" : "未精算の記録はありません。") +
+    '</p></section>';
+
+  /* 通知 */
+  h += '<div class="notices">';
+  if (UI.saveError) {
+    h += '<div class="notice err" role="alert"><span class="txt">保存できていません。この内容はまだ残っていません。</span>' +
+      btn("もう一度保存", { variant: "danger", size: "sm", action: "retry" }) + '</div>';
+  }
+  if (UI.notice) {
+    h += '<div class="notice info"><span style="display:inline-flex">' + icon("check", 18) + '</span>' +
+      '<span class="txt" style="font-size:14px;font-weight:700">' + esc(UI.notice) + '</span>' +
+      '<button class="link" data-act="closeNotice">閉じる</button></div>';
+  }
+  var remind = UI.tab === "home" && all.length && S.book.pending !== UI.bannerOff &&
+    (UI.justSettled || S.book.pending >= 8 || (!S.book.lastExportAt && S.book.pending >= 4));
+  if (remind) {
+    h += '<div class="notice warn"><span class="txt">' +
+      (UI.justSettled ? "精算が終わりました。いまの記録を控えに残しておきませんか。"
+        : "前回の控えから " + S.book.pending + " 回の変更があります。") + '</span>' +
+      btn(UI.copied ? "コピー済み" : "コピー", { variant: "secondary", size: "sm", action: "copy", icon: UI.copied ? "check" : "copy" }) +
+      '<button class="link" data-act="dismissBanner">あとで</button></div>';
+  }
+  h += '</div>';
+
+  h += '<main>';
+  if (UI.tab === "home") h += homeHtml();
+  else if (UI.tab === "add") h += '<div class="stack" style="gap:20px">' + formHtml(UI.form || (UI.form = blankForm())) +
+    btn("記録する", { block: true, size: "lg", action: "add" }) + '</div>';
+  else if (UI.tab === "paste") h += importHtml();
+  else if (UI.tab === "guide") h += guideHtml();
+  else h += settingsHtml();
+  h += '</main>';
+
+  h += tabbarHtml();
+
+  app.innerHTML = h;
+}
+
+function tabbarHtml() {
+  return '<nav class="tabbar"><div class="inner">' + [
+    { v: "home", l: "記録", i: "list" }, { v: "add", l: "追加", i: "plus" },
+    { v: "paste", l: "取込", i: "import" }, { v: "set", l: "設定", i: "gear" },
+    { v: "guide", l: "使い方", i: "book" }
+  ].map(function (t) {
+    return '<button data-tab="' + t.v + '"' + (UI.tab === t.v ? ' class="on"' : '') + '>' +
+      '<span class="ico">' + icon(t.i, 22, UI.tab === t.v ? 2.4 : 2) + '</span>' + t.l + '</button>';
+  }).join("") + '</div></nav>';
+}
+function paintStatus() {
+  var el = document.getElementById("status");
+  if (el) el.textContent = UI.saving ? "保存中…" : UI.saveError ? "未保存" : "自動保存";
+}
+function repaintPreview() {
+  var el = document.getElementById("preview");
+  if (el && UI.form) {
+    var tmp = document.createElement("div");
+    tmp.innerHTML = previewHtml(UI.form);
+    el.replaceWith(tmp.firstChild);
+  }
+}
+
+/* ── 操作 ────────────────────────────────────────────────── */
+document.addEventListener("click", function (ev) {
+  if (ev.target.closest("#drop")) {
+    var picker = document.getElementById("file");
+    if (picker) picker.click();
+    return;
+  }
+  var t = ev.target.closest("[data-tab],[data-act],[data-seg],[data-method]");
+  if (!t) return;
+
+  if (t.dataset.tab) {
+    UI.tab = t.dataset.tab; UI.formError = "";
+    if (UI.tab === "add" && !UI.form) UI.form = blankForm();
+    if (UI.tab !== "home") { UI.editId = null; UI.deleteId = null; }
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
+
+  if (t.dataset.method) { UI.form.method = t.dataset.method; UI.formError = ""; render(); return; }
+
+  if (t.dataset.seg) {
+    var v = t.dataset.value, n = t.dataset.seg;
+    if (n === "payer") { UI.form.payer = v; render(); }
+    else if (n === "filter") { UI.filter = v; render(); }
+    else if (n === "scope") { UI.scope = v; render(); }
+    else if (n === "importPayer") { UI.importPayer = v; render(); }
+    return;
+  }
+
+  var id = t.dataset.id;
+  switch (t.dataset.act) {
+    case "goAdd": UI.tab = "add"; UI.form = blankForm(); render(); break;
+    case "goGuide": UI.tab = "guide"; render(); window.scrollTo(0, 0); break;
+    case "closeNotice": UI.notice = ""; render(); break;
+    case "dismissBanner": UI.bannerOff = S.book.pending; UI.justSettled = false; render(); break;
+    case "retry": persist(); render(); break;
+
+    case "settle":
+      change(function () {
+        var d = today();
+        S.entries = S.entries.map(function (e) {
+          return e.settled ? e : Object.assign({}, e, { settled: true, settledOn: d, updatedAt: Date.now() });
+        });
+      });
+      UI.notice = "精算しました"; UI.justSettled = true; UI.tab = "home"; render();
+      break;
+
+    case "add": {
+      var msg = validate(UI.form);
+      if (msg) { UI.formError = msg; render(); break; }
+      var keep = { date: UI.form.date, payer: UI.form.payer, method: UI.form.method };
+      var e = Object.assign({ id: uid() }, fromForm(UI.form),
+        { settled: false, settledOn: "", txnId: "", source: "manual", updatedAt: Date.now() });
+      change(function () { S.entries = [e].concat(S.entries); });
+      UI.form = Object.assign(blankForm(), keep);
+      UI.formError = ""; UI.notice = "記録しました"; UI.tab = "home"; render();
+      break;
+    }
+
+    case "edit": UI.editId = id; UI.deleteId = null; UI.formError = "";
+      UI.form = toForm(S.entries.filter(function (x) { return x.id === id; })[0]); render(); break;
+    case "cancelEdit": UI.editId = null; UI.form = null; UI.formError = ""; render(); break;
+    case "saveEdit": {
+      var m2 = validate(UI.form);
+      if (m2) { UI.formError = m2; render(); break; }
+      var next = fromForm(UI.form);
+      change(function () {
+        S.entries = S.entries.map(function (x) {
+          return x.id === id ? Object.assign({}, x, next, { updatedAt: Date.now() }) : x;
+        });
+      });
+      UI.editId = null; UI.form = null; UI.formError = ""; render();
+      break;
+    }
+
+    case "toggle":
+      change(function () {
+        S.entries = S.entries.map(function (x) {
+          if (x.id !== id) return x;
+          return Object.assign({}, x, {
+            settled: !x.settled, settledOn: x.settled ? "" : today(), updatedAt: Date.now()
+          });
+        });
+      });
+      break;
+    case "askDel": UI.deleteId = id; render(); break;
+    case "delCancel": UI.deleteId = null; render(); break;
+    case "del":
+      change(function () {
+        S.trash = (S.trash || []).concat(
+          S.entries.filter(function (x) { return x.id === id; })
+            .map(function (x) { return Object.assign({}, x, { deleted: true, updatedAt: Date.now() }); }));
+        S.entries = S.entries.filter(function (x) { return x.id !== id; });
+      });
+      UI.deleteId = null; render();
+      break;
+
+    case "togglePaste": UI.showPaste = !UI.showPaste; render(); break;
+    case "parse": {
+      var res = parsePayPay(UI.csvText);
+      UI.parseError = res.error;
+      UI.parsed = res.error ? null : res.rows;
+      render();
+      break;
+    }
+    case "take": {
+      var list = UI.parsed.filter(function (r) { return r.include; }).map(function (r) {
+        return { id: uid(), date: r.date, title: r.title, amount: r.amount,
+          payer: UI.importPayer, method: "PayPay", aPersonal: 0, bPersonal: 0,
+          aPersonalNote: "", bPersonalNote: "", txnId: r.txnId,
+          settled: false, settledOn: "", source: "paypay", updatedAt: Date.now() };
+      });
+      if (!list.length) break;
+      change(function () { S.entries = list.concat(S.entries); });
+      UI.notice = list.length + " 件を取り込みました";
+      UI.parsed = null; UI.csvText = ""; UI.fileName = ""; UI.showPaste = false;
+      UI.tab = "home"; render();
+      break;
+    }
+
+    case "toggleSync":
+      S.sync.on = !S.sync.on;
+      persistOnly(); render();
+      if (S.sync.on && S.sync.url && S.sync.key && S.sync.house) runSync(false);
+      break;
+    case "applyInvite":
+      S.sync = UI.pendingInvite;
+      UI.pendingInvite = null;
+      UI.notice = "同期の設定を読み込みました";
+      persistOnly(); render(); runSync(true);
+      break;
+    case "rejectInvite":
+      UI.pendingInvite = null; render();
+      break;
+    case "syncNow": runSync(false); break;
+    case "invite": {
+      if (location.protocol === "file:") {
+        UI.inviteUrl = "";
+        UI.syncErr = "招待リンクは、GitHub Pages などに置いた状態でのみ作れます。" +
+          "いまはファイルを直接開いているため、相手には設定の3つを手で伝えてください。";
+        render();
+        break;
+      }
+      var link = makeInvite();
+      UI.inviteUrl = link;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(function () {
+          UI.invited = true; render();
+          setTimeout(function () { UI.invited = false; render(); }, 2600);
+        }).catch(function () { render(); });
+      } else { render(); }
+      break;
+    }
+    case "copy": copyForSheet(); break;
+    case "csv": exportCsv(); break;
+    case "closeFallback": UI.copyFallback = ""; render(); break;
+    case "askReset": UI.confirmReset = true; render(); break;
+    case "cancelReset": UI.confirmReset = false; render(); break;
+    case "reset":
+      change(function () {
+        S.trash = (S.trash || []).concat(S.entries.map(function (x) {
+          return Object.assign({}, x, { deleted: true, updatedAt: Date.now() });
+        }));
+        S.entries = [];
+      });
+      UI.confirmReset = false; UI.notice = "すべての記録を削除しました"; render();
+      break;
+  }
+});
+
+/* 入力は再描画せず、プレビューだけ更新する（入力欄からフォーカスが外れないように） */
+document.addEventListener("input", function (ev) {
+  var el = ev.target;
+  if (el.id === "csv") { UI.csvText = el.value; return; }
+  if (el.dataset && el.dataset.input) {
+    var n = el.dataset.input;
+    if (n === "nameA" || n === "nameB") return;
+    if (n === "syncUrl" || n === "syncKey" || n === "syncHouse") {
+      S.sync[n === "syncUrl" ? "url" : n === "syncKey" ? "key" : "house"] = el.value.trim();
+      persistOnly();
+      return;
+    }
+    if (UI.form) { UI.form[n] = el.value; repaintPreview(); }
+    return;
+  }
+  if (el.dataset && el.dataset.flip) {
+    var k = el.dataset.flip;
+    UI.parsed = UI.parsed.map(function (r) { return r.key === k ? Object.assign({}, r, { include: el.checked }) : r; });
+    render();
+  }
+});
+
+/* ファイルを選んだとき */
+document.addEventListener("change", function (ev) {
+  if (ev.target && ev.target.id === "file") {
+    readCsvFile(ev.target.files && ev.target.files[0]);
+    ev.target.value = "";
+  }
+});
+
+/* ドラッグ＆ドロップ */
+["dragenter", "dragover"].forEach(function (name) {
+  document.addEventListener(name, function (ev) {
+    var zone = ev.target.closest ? ev.target.closest("#drop") : null;
+    if (!zone) return;
+    ev.preventDefault();
+    zone.classList.add("over");
+  });
+});
+document.addEventListener("dragleave", function (ev) {
+  var zone = ev.target.closest ? ev.target.closest("#drop") : null;
+  if (zone) zone.classList.remove("over");
+});
+document.addEventListener("drop", function (ev) {
+  var zone = ev.target.closest ? ev.target.closest("#drop") : null;
+  if (!zone) return;
+  ev.preventDefault();
+  zone.classList.remove("over");
+  var dt = ev.dataTransfer;
+  if (dt && dt.files && dt.files.length) readCsvFile(dt.files[0]);
+});
+/* 画面の外にドロップして、ブラウザがファイルを開いてしまうのを防ぐ */
+document.addEventListener("dragover", function (ev) { ev.preventDefault(); });
+document.addEventListener("drop", function (ev) {
+  if (!(ev.target.closest && ev.target.closest("#drop"))) ev.preventDefault();
+});
+
+/* 表示名は入力を終えた時点で反映する */
+document.addEventListener("blur", function (ev) {
+  var el = ev.target;
+  if (!el.dataset || !el.dataset.input) return;
+  if (el.dataset.input === "nameA" || el.dataset.input === "nameB") {
+    var side = el.dataset.input === "nameA" ? "A" : "B";
+    var v = el.value.trim() || (side === "A" ? "Aさん" : "Bさん");
+    if (S.names[side] === v) return;
+    S.names[side] = v;
+    S.namesUpdatedAt = Date.now();
+    persist();
+    render();
+  }
+}, true);
+
+/* ── 起動 ────────────────────────────────────────────────── */
+Store.load().then(function (d) {
+  if (d) {
+    if (d.names) S.names = Object.assign(S.names, d.names);
+    if (Array.isArray(d.entries)) S.entries = d.entries.map(stampEntry);
+    if (d.book) S.book = Object.assign(S.book, d.book);
+    if (d.sync) S.sync = Object.assign(S.sync, d.sync);
+    if (d.namesUpdatedAt) S.namesUpdatedAt = d.namesUpdatedAt;
+    if (Array.isArray(d.trash)) S.trash = d.trash;
+  }
+  // 招待リンクがあれば取り込む。
+  // ただし、すでに記録や別の接続先がある場合は必ず確認する。
+  // 細工したリンクを踏ませて、手元の記録を他人のサーバーへ
+  // 送らせる手口があるためです。
+  var invite = readInvite();
+  if (invite) {
+    var fresh = S.entries.length === 0 && !S.sync.url;
+    if (fresh) {
+      S.sync = invite;
+      UI.notice = "同期の設定を読み込みました";
+      persistOnly();
+    } else {
+      UI.pendingInvite = invite;
+    }
+  } else if (!S.sync.url && DEFAULTS.url && DEFAULTS.key && DEFAULTS.house) {
+    // ファイルに埋め込まれた値（配布用に書き換えた場合）
+    S.sync = { url: DEFAULTS.url, key: DEFAULTS.key, house: DEFAULTS.house, on: true };
+  }
+  clearInvite();
+
+  UI.loading = false;
+  render();
+  if (syncReady()) runSync(true);
+});
+
+/* 画面に戻ってきたときに、相手の変更を取り込む */
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden && syncReady()) runSync(true);
+});
+</script>
+</body>
+</html>
