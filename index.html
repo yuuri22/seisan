@@ -1055,7 +1055,7 @@ function entryHtml(r) {
   h += '<div class="acts">' +
     '<button data-act="edit" data-id="' + r.id + '">' + icon("pencil", 16) + '編集</button>' +
     '<button data-act="toggle" data-id="' + r.id + '" class="' + (r.settled ? '' : 'brand') + '">' +
-    icon(r.settled ? "undo" : "check", 16) + (r.settled ? "未精算に戻す" : "精算済みに") + '</button>' +
+    icon(r.settled ? "undo" : "check", 16) + (r.settled ? "未精算" : "精算済み") + '</button>' +
     '<span class="spacer"></span>' +
     '<button data-act="askDel" data-id="' + r.id + '" class="danger">' + icon("trash", 16) + '削除</button>' +
     '</div>';
@@ -1285,7 +1285,7 @@ function guideHtml() {
     '<p>いちばん上のカードに、どちらがいくら返せばよいかが出ています。' +
     '実際に送金や手渡しを済ませてから<b>精算する</b>を押してください。押す前に確認のダイアログが出ます。</p>' +
     '<p>記録の一覧で月を選んでいれば、<b>その月の分だけ</b>精算できます。「すべての月」のときは、未精算の記録がすべて精算済みになります。</p>' +
-    '<p>1件だけ精算したいときは、その記録の<b>精算済みに</b>から個別に切り替えられます。もとに戻すこともできます。</p>' +
+    '<p>1件だけ精算したいときは、その記録の<b>精算済み</b>から個別に切り替えられます。<b>未精算</b>でもとに戻せます。</p>' +
     '<div class="note warn">このアプリはお金を動かしません。送金はPayPayや銀行アプリで行い、そのあとにこのボタンを押す、という順番です。</div>');
 
   /* 6. 控え */
