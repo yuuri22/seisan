@@ -167,7 +167,16 @@ main{padding:24px var(--screen-pad) 0}
 .entry{display:flex;align-items:center;gap:12px}
 .entry .body{flex:1;min-width:0}
 .entry .title{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.entry .sub{display:flex;gap:6px;margin-top:3px;font-size:13px;color:var(--text-tertiary)}
+.entry .sub{
+  display:flex;gap:6px;margin-top:3px;font-size:13px;color:var(--text-tertiary);
+  white-space:nowrap;                      /* 日付も立替も折り返さない */
+}
+/* 日付は「1月1日」〜「12月31日」で幅がほぼ一定。
+   最大幅ぶんを先に確保して、カードをまたいで縦に揃える */
+.entry .sub .date{flex:none;min-width:4.6em}
+.entry .sub .sep{flex:none}
+/* 名前が長いときは、折り返さずに末尾を省略する */
+.entry .sub .payer{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600}
 .entry .right{text-align:right;flex:none}
 .entry .amt{font-size:15px;font-weight:700;color:var(--money-out)}
 .entry .bal{font-size:12px;font-weight:600;margin-top:3px;color:var(--brand-strong)}
@@ -905,8 +914,9 @@ function entryHtml(r) {
   var dir = r.balance > 0 ? S.names.B + " → " + S.names.A : S.names.A + " → " + S.names.B;
   var h = '<div class="entry">' + catIcon(r.method) +
     '<div class="body"><div class="title">' + esc(r.title) + '</div>' +
-    '<div class="sub"><span>' + esc(jpDate(r.date)) + '</span><span aria-hidden="true">·</span>' +
-    '<span style="color:' + side + ';font-weight:600">' + esc(S.names[r.payer]) + 'が立替</span></div></div>' +
+    '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span>' +
+    '<span class="sep" aria-hidden="true">·</span>' +
+    '<span class="payer" style="color:' + side + '">' + esc(S.names[r.payer]) + 'が立替</span></div></div>' +
     '<div class="right"><div class="amt num">' + yen(r.amount) + '</div>' +
     '<div class="bal num"' + (r.balance === 0 ? ' style="color:var(--text-tertiary)"' : '') + '>' +
     (r.balance === 0 ? "—" : esc(yen(Math.abs(r.balance)) + " " + dir)) + '</div></div></div>';
@@ -1397,15 +1407,8 @@ function render() {
       '<span class="txt" style="font-size:14px;font-weight:700">' + esc(UI.notice) + '</span>' +
       '<button class="link" data-act="closeNotice">閉じる</button></div>';
   }
-  var remind = UI.tab === "home" && all.length && S.book.pending !== UI.bannerOff &&
-    (UI.justSettled || S.book.pending >= 8 || (!S.book.lastExportAt && S.book.pending >= 4));
-  if (remind) {
-    h += '<div class="notice warn"><span class="txt">' +
-      (UI.justSettled ? "精算が終わりました。いまの記録を控えに残しておきませんか。"
-        : "前回の控えから " + S.book.pending + " 回の変更があります。") + '</span>' +
-      btn(UI.copied ? "コピー済み" : "コピー", { variant: "secondary", size: "sm", action: "copy", icon: UI.copied ? "check" : "copy" }) +
-      '<button class="link" data-act="dismissBanner">あとで</button></div>';
-  }
+  // 控えを促すバナーは出しません。
+  // 控えを残す操作は、設定画面からいつでも行えます。
   h += '</div>';
 
   h += '<main>';
