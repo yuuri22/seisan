@@ -255,11 +255,7 @@ main{padding:24px var(--screen-pad) 0}
 /* 使い方ページ */
 .guide{padding-bottom:8px}
 .guide .lead{font-size:14px;color:var(--text-secondary);line-height:var(--lh-normal);margin:0 0 4px}
-.guide h3{font-size:16px;font-weight:700;margin:0 0 10px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
-.guide h3 .n{
-  display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;
-  border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:800;
-}
+.guide h3{font-size:16px;font-weight:700;margin:0 0 10px;letter-spacing:-.01em;text-wrap:balance}
 .guide p{font-size:14px;color:var(--text-secondary);line-height:1.7;margin:0 0 10px}
 .guide p:last-child{margin-bottom:0}
 .guide b{color:var(--text-primary);font-weight:700}
@@ -1145,9 +1141,12 @@ function guideHtml() {
     : Store.mode === "artifact" ? "Claudeの保存領域"
     : "メモリのみ（閉じると消えます）";
 
-  function card(no, title, inner) {
+  // 見出しに番号は付けません。
+  // ここに並ぶのは順にこなす手順ではなく、必要なときに読む話題だからです。
+  // 手順の番号は「ふだんの流れ」の中だけで使います。
+  function card(title, inner) {
     return '<div class="card md" style="padding:18px">' +
-      '<h3>' + (no ? '<span class="n">' + no + '</span>' : '') + esc(title) + '</h3>' + inner + '</div>';
+      '<h3>' + esc(title) + '</h3>' + inner + '</div>';
   }
 
   var h = '<div class="guide stack" style="gap:14px">';
@@ -1159,7 +1158,7 @@ function guideHtml() {
     '</div>';
 
   /* 1. 全体の流れ */
-  h += card(1, "ふだんの流れ",
+  h += card("ふだんの流れ",
     '<div class="flow">' +
     '<div class="step"><span class="dot">1</span><span>買い物をしたら、<b>追加</b>から1件ずつ記録します。現金やクレジットカードで払った分が対象です。</span></div>' +
     '<div class="step"><span class="dot">2</span><span>PayPayで払った分は毎回入れなくて構いません。月末に<b>取込</b>でCSVからまとめて入れられます。</span></div>' +
@@ -1169,14 +1168,14 @@ function guideHtml() {
     '</div>');
 
   /* 2. 記録の追加 */
-  h += card(2, "記録を追加する",
+  h += card("記録を追加する",
     '<p><b>追加</b>タブで、使った先と金額、日付、立て替えた人、支払手段を入れます。' +
     '入力していくと画面の下に折半の結果が出るので、その場で確かめられます。</p>' +
     '<p>記録したあとも日付・立替者・支払手段はそのまま残るので、同じ日の買い物を続けて入れるときは金額と内容だけで足ります。</p>' +
     '<div class="note info">まちがえて記録しても、一覧の<b>編集</b>からいつでも直せます。</div>');
 
   /* 3. 個人分 */
-  h += card(3, "個人的な買い物が混ざったとき",
+  h += card("個人的な買い物が混ざったとき",
     '<p>ひとつのレシートに共通のものと個人的なものが混ざることがあります。' +
     'そのときは<b>個人分</b>に金額を入れてください。先にその分を引いてから、残りだけを折半します。</p>' +
     '<div class="calc">' +
@@ -1189,7 +1188,7 @@ function guideHtml() {
     '<p style="margin-top:10px">「その中身」に品名を書いておくと、あとで見返したときに何の分だったか分かります。</p>');
 
   /* 4. PayPay取込 */
-  h += card(4, "PayPayの履歴を取り込む",
+  h += card("PayPayの履歴を取り込む",
     '<p>PayPayアプリの［取引履歴］からCSVをダウンロードし、<b>取込</b>タブでそのファイルを選びます。' +
     'パソコンならドラッグ＆ドロップでも取り込めます。</p>' +
     '<ul>' +
@@ -1200,14 +1199,14 @@ function guideHtml() {
     '<div class="note">取り込んだ直後は個人分がゼロの状態です。個人的な買い物が混ざっていた行は、一覧の<b>編集</b>から個人分を入れてください。</div>');
 
   /* 5. 精算 */
-  h += card(5, "精算する",
+  h += card("精算する",
     '<p>いちばん上のカードに、どちらがいくら返せばよいかが出ています。' +
     '実際に送金や手渡しを済ませてから<b>精算する</b>を押してください。押した時点で未精算の記録がすべて精算済みになります。</p>' +
     '<p>1件だけ精算したいときは、その記録の<b>精算済みに</b>から個別に切り替えられます。もとに戻すこともできます。</p>' +
     '<div class="note warn">このアプリはお金を動かしません。送金はPayPayや銀行アプリで行い、そのあとにこのボタンを押す、という順番です。</div>');
 
   /* 6. 控え */
-  h += card(6, "控えを残す",
+  h += card("控えを残す",
     '<p>記録は' + esc(where) + 'に保存されます。ただし、ブラウザのデータを消したり端末を買い替えたりすると失われます。' +
     'そのため、ときどき<b>設定 → 控えを残す</b>から外に写しておくことをおすすめします。</p>' +
     '<div class="kv"><span class="k">コピー</span><span class="v">スプレッドシートを開いてA1を選び、貼り付けるだけです。いちばん手軽です。</span></div>' +
@@ -1216,7 +1215,7 @@ function guideHtml() {
     '<div class="note info" style="margin-top:12px">この控えのスプレッドシートを相手と共有すると、ふたりで明細を確認できます。共有相手は「特定のユーザー」に絞ってください。</div>');
 
   /* 7. ふたりで使う */
-  h += card(7, "ふたりで使う",
+  h += card("ふたりで使う",
     '<p>使い方は2つあります。どちらでも構いません。</p>' +
     '<div class="kv"><span class="k">同期する</span><span class="v">設定でSupabaseをつなぐと、どちらが記録しても両方の端末に反映されます。相手の入力もそのまま見えます。</span></div>' +
     '<div class="kv"><span class="k">記録係を決める</span><span class="v">つながずに、どちらか一方だけが入力します。相手には控えのスプレッドシートを共有して見てもらいます。</span></div>' +
@@ -1227,7 +1226,7 @@ function guideHtml() {
     '削除も相手の端末に伝わるので、片方で消した記録が復活することはありません。</p>');
 
   /* 8. 保存とプライバシー */
-  h += card(8, "保存先とプライバシー",
+  h += card("保存先とプライバシー",
     '<div class="kv"><span class="k">保存先</span><span class="v">' + esc(where) + '</span></div>' +
     '<div class="kv"><span class="k">通信</span><span class="v">' +
     (S.sync.on ? '同期を有効にしているため、記録はご自身のSupabaseにも保存されます。' : '同期を使っていないので、記録はどこにも送信されません。') +
@@ -1242,7 +1241,7 @@ function guideHtml() {
       : ''));
 
   /* 9. 困ったとき */
-  h += card(9, "困ったとき",
+  h += card("困ったとき",
     '<div class="kv"><span class="k">数字が合わない</span><span class="v">一覧が「未精算」で絞り込まれていないか確かめてください。「すべて」に切り替えると精算済みも含めて見られます。</span></div>' +
     '<div class="kv"><span class="k">店名が文字化け</span><span class="v">CSVを読み込み直してみてください。文字コードは自動で判別しますが、まれに外すことがあります。</span></div>' +
     '<div class="kv"><span class="k">取り込めない</span><span class="v">PayPayのCSVを、見出しの行を含めたまま使ってください。加工したファイルだと列を読み取れないことがあります。</span></div>' +
@@ -1250,7 +1249,7 @@ function guideHtml() {
     '<div class="kv"><span class="k">全部消したい</span><span class="v">設定のいちばん下にあります。元に戻せないので、先に控えを残しておいてください。</span></div>');
 
   /* 9. 用語 */
-  h += card(0, "画面に出てくる言葉",
+  h += card("画面に出てくる言葉",
     '<div class="kv"><span class="k">共通分</span><span class="v">合計から個人分を引いた、ふたりで分ける金額です。</span></div>' +
     '<div class="kv"><span class="k">負担</span><span class="v">その1件で、それぞれが実際に負うべき金額です。</span></div>' +
     '<div class="kv"><span class="k">貸し借り</span><span class="v">立て替えた額と負担額の差です。まだ返していない分を指します。</span></div>' +
