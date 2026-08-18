@@ -122,6 +122,20 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
 }
 .seg button.on{background:#fff;color:var(--brand-strong);box-shadow:var(--shadow-sm)}
 
+/* 月の絞り込み。月が増えても折り返さず、横に流します */
+.months{
+  display:flex;gap:8px;overflow-x:auto;padding:2px var(--screen-pad);
+  margin:0 calc(var(--screen-pad) * -1);-webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+.months::-webkit-scrollbar{display:none}
+.months button{
+  flex:none;height:36px;padding:0 15px;border-radius:var(--radius-pill);
+  border:1.5px solid var(--border-default);background:var(--surface-card);color:var(--text-secondary);
+  font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer;
+  transition:all var(--dur-fast) var(--ease-standard);
+}
+.months button.on{border-color:var(--brand);background:var(--brand);color:#fff}
+
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{
   display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 16px;font-size:14px;font-weight:600;
@@ -495,7 +509,7 @@ var S = {
   namesUpdatedAt: 0
 };
 var UI = {
-  tab: "home", filter: "未精算", scope: "未精算",
+  tab: "home", filter: "未精算", scope: "未精算", month: "",
   editId: null, form: null,
   parsed: null, csvText: "", importPayer: "A", parseError: "",
   fileName: "", showPaste: false, reading: false,
@@ -535,6 +549,36 @@ function jpDate(s) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
   return m ? Number(m[2]) + "月" + Number(m[3]) + "日" : (s || "");
 }
+
+/* 月の絞り込み。日付は "2026-08-15" の形で持っています */
+function ymOf(d) { return (d || "").slice(0, 7); }
+function ymFull(ym) {
+  var m = /^(\d{4})-(\d{2})$/.exec(ym || "");
+  return m ? Number(m[1]) + "年" + Number(m[2]) + "月" : "";
+}
+// ボタンの中は短く。今年なら「8月」、去年以前なら「2025年12月」
+function ymLabel(ym) {
+  var m = /^(\d{4})-(\d{2})$/.exec(ym || "");
+  if (!m) return "";
+  return Number(m[1]) === new Date().getFullYear()
+    ? Number(m[2]) + "月"
+    : Number(m[1]) + "年" + Number(m[2]) + "月";
+}
+function monthsOf(list) {
+  var seen = {}, out = [];
+  list.forEach(function (r) {
+    var k = ymOf(r.date);
+    if (k && !seen[k]) { seen[k] = 1; out.push(k); }
+  });
+  return out.sort().reverse();
+}
+// 選んでいた月が今のデータに無いときは「すべての月」として扱います。
+// その月の記録を消したあと、空の一覧から抜け出せなくなるのを防ぎます
+function curMonth() {
+  if (!UI.month) return "";
+  return monthsOf(rows()).indexOf(UI.month) >= 0 ? UI.month : "";
+}
+function inMonth(r, m) { return !m || ymOf(r.date) === m; }
 function whenLabel(iso) {
   if (!iso) return "";
   var d = new Date(iso);
@@ -1010,16 +1054,33 @@ function entryHtml(r) {
   return h;
 }
 
+function monthRowHtml(all, m) {
+  var ms = monthsOf(all);
+  // 月がひとつだけなら、絞り込む意味がないので出しません
+  if (ms.length < 2) return "";
+  return '<div style="height:12px"></div>' +
+    '<div class="months" role="group" aria-label="月で絞り込む">' +
+    '<button type="button" data-seg="month" data-value=""' + (m ? '' : ' class="on"') +
+    ' aria-pressed="' + (m ? "false" : "true") + '">すべての月</button>' +
+    ms.map(function (k) {
+      var on = k === m;
+      return '<button type="button" data-seg="month" data-value="' + esc(k) + '"' +
+        (on ? ' class="on"' : '') + ' aria-pressed="' + (on ? "true" : "false") + '">' +
+        esc(ymLabel(k)) + '</button>';
+    }).join("") + '</div>';
+}
+
 function homeHtml() {
   var all = rows();
 
   // 切り替えは記録の有無によらず常に出す。
   // 記録が無いときだけ消えると、「すべて」が
   // どこにあるのか分からなくなるためです
-  var h = seg("filter", ["未精算", "すべて"], UI.filter) + '<div style="height:18px"></div>';
+  var h = seg("filter", ["未精算", "すべて"], UI.filter);
 
   if (!all.length) {
-    return h + '<div class="empty"><span class="icon">' + icon("list", 32) + '</span>' +
+    return h + '<div style="height:18px"></div>' +
+      '<div class="empty"><span class="icon">' + icon("list", 32) + '</span>' +
       '<h3>まだ記録がありません</h3>' +
       '<p>1件ずつなら下の「追加」から、PayPayの履歴はまとめて「取込」から記録できます。</p>' +
       '<div style="margin-top:14px">' +
@@ -1027,10 +1088,18 @@ function homeHtml() {
       '</div></div>';
   }
 
-  var shown = UI.filter === "未精算" ? all.filter(function (r) { return !r.settled; }) : all;
+  var m = curMonth();
+  h += monthRowHtml(all, m) + '<div style="height:18px"></div>';
+
+  var shown = all.filter(function (r) {
+    if (UI.filter === "未精算" && r.settled) return false;
+    return inMonth(r, m);
+  });
   if (!shown.length) {
-    h += '<p class="muted" style="text-align:center;padding:32px 0">' +
-      (UI.filter === "未精算" ? "未精算の記録はありません。" : "記録がありません。") + '</p>';
+    h += '<p class="muted" style="text-align:center;padding:32px 0">' + (m ? ymFull(m) : "") +
+      (UI.filter === "未精算"
+        ? (m ? "に未精算の記録はありません。" : "未精算の記録はありません。")
+        : (m ? "の記録はありません。" : "記録がありません。")) + '</p>';
     return h;
   }
   h += '<div class="stack" style="gap:12px">' + shown.map(function (r) {
@@ -1163,7 +1232,7 @@ function guideHtml() {
     '<div class="step"><span class="dot">1</span><span>買い物をしたら、<b>追加</b>から1件ずつ記録します。現金やクレジットカードで払った分が対象です。</span></div>' +
     '<div class="step"><span class="dot">2</span><span>PayPayで払った分は毎回入れなくて構いません。月末に<b>取込</b>でCSVからまとめて入れられます。</span></div>' +
     '<div class="step"><span class="dot">3</span><span>画面のいちばん上に、いまの貸し借りが出ます。どちらがいくら返せばよいかがひと目で分かります。</span></div>' +
-    '<div class="step"><span class="dot">4</span><span>実際に送金したら<b>精算する</b>を押します。未精算がすべて片付き、貸し借りがゼロに戻ります。</span></div>' +
+    '<div class="step"><span class="dot">4</span><span>実際に送金したら<b>精算する</b>を押します。月を選んでいれば、その月の分だけ精算できます。</span></div>' +
     '<div class="step"><span class="dot">5</span><span>精算のあと、<b>設定</b>から控えをスプレッドシートに残しておきます。</span></div>' +
     '</div>');
 
@@ -1201,7 +1270,8 @@ function guideHtml() {
   /* 5. 精算 */
   h += card("精算する",
     '<p>いちばん上のカードに、どちらがいくら返せばよいかが出ています。' +
-    '実際に送金や手渡しを済ませてから<b>精算する</b>を押してください。押した時点で未精算の記録がすべて精算済みになります。</p>' +
+    '実際に送金や手渡しを済ませてから<b>精算する</b>を押してください。押す前に確認のダイアログが出ます。</p>' +
+    '<p>記録の一覧で月を選んでいれば、<b>その月の分だけ</b>精算できます。「すべての月」のときは、未精算の記録がすべて精算済みになります。</p>' +
     '<p>1件だけ精算したいときは、その記録の<b>精算済みに</b>から個別に切り替えられます。もとに戻すこともできます。</p>' +
     '<div class="note warn">このアプリはお金を動かしません。送金はPayPayや銀行アプリで行い、そのあとにこのボタンを押す、という順番です。</div>');
 
@@ -1242,7 +1312,7 @@ function guideHtml() {
 
   /* 9. 困ったとき */
   h += card("困ったとき",
-    '<div class="kv"><span class="k">数字が合わない</span><span class="v">一覧が「未精算」で絞り込まれていないか確かめてください。「すべて」に切り替えると精算済みも含めて見られます。</span></div>' +
+    '<div class="kv"><span class="k">数字が合わない</span><span class="v">一覧が「未精算」や特定の月で絞り込まれていないか確かめてください。「すべて」「すべての月」に戻すと、全部まとめて見られます。</span></div>' +
     '<div class="kv"><span class="k">店名が文字化け</span><span class="v">CSVを読み込み直してみてください。文字コードは自動で判別しますが、まれに外すことがあります。</span></div>' +
     '<div class="kv"><span class="k">取り込めない</span><span class="v">PayPayのCSVを、見出しの行を含めたまま使ってください。加工したファイルだと列を読み取れないことがあります。</span></div>' +
     '<div class="kv"><span class="k">コピーできない</span><span class="v">自動コピーが使えない環境では、代わりに文字の入った枠が出ます。全選択してコピーしてください。</span></div>' +
@@ -1377,15 +1447,22 @@ function confirmDialogHtml() {
   var title, body, note = "", extra = "", okLabel, okVariant = "primary";
 
   if (q.kind === "settleAll") {
-    var un = rows().filter(function (r) { return !r.settled; });
+    var open = rows().filter(function (r) { return !r.settled; });
+    var un = open.filter(function (r) { return inMonth(r, q.month); });
+    var rest = open.length - un.length;
     var net = un.reduce(function (s, r) { return s + r.balance; }, 0);
-    title = "精算しますか？";
-    body = "未精算の" + un.length + "件を、まとめて精算済みにします。";
+    title = q.month ? ymFull(q.month) + "分を精算しますか？" : "精算しますか？";
+    body = (q.month ? ymFull(q.month) + "の未精算" : "未精算の") + un.length + "件を、まとめて精算済みにします。";
     extra = net !== 0
       ? amountBox(yen(Math.abs(net)),
           esc(net > 0 ? S.names.B : S.names.A) + " → " + esc(net > 0 ? S.names.A : S.names.B))
       : amountBox("貸し借りなし", "やりとりは発生しません");
-    note = "記録が消えることはありません。「すべて」に切り替えれば、あとから見返せます。";
+    // ほかの月が残るときは、はっきり伝えます。
+    // 上の「いまの貸し借り」は全期間の合計なので、
+    // 金額が食い違って見えて不安になるためです
+    note = rest
+      ? "ほかの月の未精算 " + rest + " 件は、そのまま残ります。"
+      : "記録が消えることはありません。「すべて」に切り替えれば、あとから見返せます。";
     okLabel = "精算する";
   } else {
     var e = S.entries.filter(function (x) { return x.id === q.id; })[0];
@@ -1492,10 +1569,15 @@ function render() {
   // 追加や設定の画面にも出していたため、
   // 別の操作をしている最中に誤って押せてしまっていました
   if (UI.tab === "home") {
+    // 精算する範囲は、下で選んでいる月に合わせます
+    var sm = curMonth();
+    var tgt = unsettled.filter(function (r) { return inMonth(r, sm); });
     h += '<div style="margin-top:16px">' +
-      btn("精算する", { block: true, icon: "check", action: "settle", disabled: !unsettled.length }) + '</div>' +
+      btn("精算する", { block: true, icon: "check", action: "settle", disabled: !tgt.length }) + '</div>' +
       '<p class="muted" style="margin:10px 2px 0">' +
-      (unsettled.length ? "未精算 " + unsettled.length + " 件をまとめて精算済みにします。" : "未精算の記録はありません。") +
+      (tgt.length
+        ? (sm ? ymFull(sm) + "の未精算 " : "未精算 ") + tgt.length + " 件をまとめて精算済みにします。"
+        : (sm ? ymFull(sm) + "に未精算の記録はありません。" : "未精算の記録はありません。")) +
       '</p>';
   }
   h += '</section>';
@@ -1586,6 +1668,7 @@ document.addEventListener("click", function (ev) {
     if (n === "payer") { UI.form.payer = v; render(); }
     else if (n === "filter") { UI.filter = v; render(); }
     else if (n === "scope") { UI.scope = v; render(); }
+    else if (n === "month") { UI.month = v; render(); }
     else if (n === "importPayer") { UI.importPayer = v; render(); }
     return;
   }
@@ -1615,7 +1698,7 @@ document.addEventListener("click", function (ev) {
 
     // 取り消しにくい操作は、押しただけでは実行しない。
     // 実行はすべて confirmOk に集約する
-    case "settle": UI.confirm = { kind: "settleAll" }; render(); break;
+    case "settle": UI.confirm = { kind: "settleAll", month: curMonth() }; render(); break;
     case "confirmCancel": UI.confirm = null; render(); break;
 
     case "confirmOk": {
@@ -1624,11 +1707,13 @@ document.addEventListener("click", function (ev) {
       if (!q) { render(); break; }
 
       if (q.kind === "settleAll") {
-        UI.notice = "精算しました"; UI.justSettled = true; UI.tab = "home";
+        UI.notice = q.month ? ymFull(q.month) + "分を精算しました" : "精算しました";
+        UI.justSettled = true; UI.tab = "home";
         change(function () {
           var d = today();
           S.entries = S.entries.map(function (e) {
-            return e.settled ? e : Object.assign({}, e, { settled: true, settledOn: d, updatedAt: Date.now() });
+            if (e.settled || !inMonth(e, q.month)) return e;
+            return Object.assign({}, e, { settled: true, settledOn: d, updatedAt: Date.now() });
           });
         });
       } else if (q.kind === "toggle") {
