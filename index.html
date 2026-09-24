@@ -472,6 +472,12 @@ function readInvite() {
   return null;
 }
 
+/* 「#s=」はあるのに読めないときは、途中で切れたリンクです。
+   黙って捨てると相手の画面には何も起きないため、見分けて知らせます */
+function inviteBroken() {
+  return /[#&]s=/.test(String(location.hash || "")) && !readInvite();
+}
+
 function makeInvite() {
   var payload = JSON.stringify({ u: S.sync.url, k: S.sync.key, h: S.sync.house });
   var code = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_");
@@ -536,7 +542,7 @@ var S = {
   names: { A: "Aさん", B: "Bさん" },
   entries: [],
   book: { lastExportAt: "", pending: 0 },
-  sync: { url: "", key: "", house: "", on: false },
+  sync: { url: "", key: "", house: "", on: false, lastOk: 0 },
   namesUpdatedAt: 0
 };
 var UI = {
@@ -791,6 +797,13 @@ function callSync(fn, body) {
       "Authorization": "Bearer " + S.sync.key
     },
     body: JSON.stringify(body)
+  }).then(null, function () {
+    // 届かなかったときは、ブラウザ既定の文言（Safariは「Load failed」、
+    // Chromeは「Failed to fetch」）がそのまま出ていました。
+    // 何を確かめればよいか分かる文に置き換えます
+    throw new Error("Supabaseにつながりませんでした。" +
+      "プロジェクトが一時停止していないか（無料枠は7日使わないと止まります）、" +
+      "プロジェクトURLが正しいか、通信が届いているかをご確認ください。");
   }).then(function (res) {
     if (!res.ok) {
       return res.text().then(function (t) {
@@ -855,15 +868,25 @@ function runSync(quiet) {
   return callSync("warikan_push", {
     p_key: S.sync.house,
     p_entries: payload,
-    p_name_a: S.names.A,
-    p_name_b: S.names.B,
-    p_names_updated: new Date(S.namesUpdatedAt || Date.now()).toISOString()
+    // 表示名を一度も変えていない端末が「いまの時刻」で送ると、
+    // 相手が付けた名前を既定値（Aさん・Bさん）で上書きしてしまいます
+    p_name_a: S.namesUpdatedAt ? S.names.A : null,
+    p_name_b: S.namesUpdatedAt ? S.names.B : null,
+    p_names_updated: S.namesUpdatedAt ? new Date(S.namesUpdatedAt).toISOString() : null
   }).then(function (data) {
     merge(data || {});
     S.trash = [];
     UI.syncing = false;
+    // 一度も同期できていない端末から招待リンクを送ると、
+    // 相手には空の画面しか出ません。見分けるために残します
+    S.sync.lastOk = Date.now();
     UI.lastSync = whenLabel(new Date().toISOString());
     UI.syncErr = "";
+    // つながったのに1件もない状態は、黙っていると伝わりません
+    if (!S.entries.length) {
+      UI.notice = "つながりましたが、記録はまだ1件もありません。" +
+        "記録がある側の端末で、設定→「いま同期する」を押してください。";
+    }
     persistOnly();
     render();
   }).catch(function (err) {
@@ -1440,9 +1463,16 @@ function settingsHtml() {
     btn(UI.syncing ? "同期しています…" : "いま同期する",
         { block: true, variant: "secondary", action: "syncNow", icon: "sync",
           disabled: UI.syncing || !(S.sync.url && S.sync.key && S.sync.house) }) +
+    // 送っても何も届かないリンクは作らせません。
+    // 一度でも同期できていれば、相手は同じ記録にたどり着けます
+    (S.sync.url && S.sync.key && S.sync.house && !S.sync.lastOk
+      ? '<div class="note warn" style="font-size:13px">この端末はまだ一度も同期できていません。' +
+        'いまリンクを送っても、相手の画面には何も出ません。' +
+        'まず「いま同期する」で記録を送ってください。</div>'
+      : '') +
     btn(UI.inviteUrl ? "リンクを作り直す" : "相手を招待するリンクを作る",
         { block: true, variant: "quiet", action: "invite", icon: "copy",
-          disabled: !(S.sync.url && S.sync.key && S.sync.house) }) +
+          disabled: !(S.sync.url && S.sync.key && S.sync.house && S.sync.lastOk) }) +
     (UI.inviteUrl
       ? '<textarea class="ta" id="invitebox" readonly ' +
         'style="height:80px;font-size:12px;background:var(--surface-sunken)">' +
@@ -1457,8 +1487,11 @@ function settingsHtml() {
       : '') +
     (UI.syncErr
       ? '<div class="note warn" style="font-size:13px">' + esc(UI.syncErr) + '</div>'
-      : '<div class="muted">' + (UI.lastSync ? esc(UI.lastSync + " に同期しました。") :
-          S.sync.on ? "まだ同期していません。" : "同期は止まっています。") + '</div>') +
+      : '<div class="muted">' + (UI.lastSync
+          ? esc(UI.lastSync + " に同期しました。")
+          : S.sync.lastOk
+            ? esc(whenLabel(new Date(S.sync.lastOk).toISOString()) + " に同期しました。")
+          : S.sync.on ? "まだ一度も同期できていません。" : "同期は止まっています。") + '</div>') +
     '</div></section>';
 
   h += '<section><h2 class="sect">控えを残す</h2><div class="card" style="display:grid;gap:12px">' +
@@ -1682,6 +1715,12 @@ function render() {
     h += '<div class="notice err" role="alert"><span class="txt">保存できていません。この内容はまだ残っていません。</span>' +
       btn("もう一度保存", { variant: "danger", size: "sm", action: "retry" }) + '</div>';
   }
+  // 同期の失敗は設定画面の中だけに出していました。
+  // 相手の記録が出てこない理由がここにあるため、どの画面でも知らせます
+  if (UI.syncErr && UI.tab !== "set") {
+    h += '<div class="notice err" role="alert"><span class="txt">' + esc(UI.syncErr) + '</span>' +
+      btn("設定を見る", { variant: "danger", size: "sm", action: "goSync" }) + '</div>';
+  }
   if (UI.notice) {
     h += '<div class="notice info"><span style="display:inline-flex">' + icon("check", 18) + '</span>' +
       '<span class="txt" style="font-size:14px;font-weight:700">' + esc(UI.notice) + '</span>' +
@@ -1904,6 +1943,7 @@ document.addEventListener("click", function (ev) {
     case "rejectInvite":
       UI.pendingInvite = null; render();
       break;
+    case "goSync": UI.tab = "set"; render(); window.scrollTo(0, 0); break;
     case "syncNow": runSync(false); break;
     case "copyInvite": copyInvite(); break;
     case "invite": {
@@ -2041,6 +2081,8 @@ Store.load().then(function (d) {
     } else {
       UI.pendingInvite = invite;
     }
+  } else if (inviteBroken()) {
+    UI.notice = "リンクが途中で切れているようです。もう一度、リンク全体を送ってもらってください。";
   } else if (!S.sync.url && DEFAULTS.url && DEFAULTS.key && DEFAULTS.house) {
     // ファイルに埋め込まれた値（配布用に書き換えた場合）
     S.sync = { url: DEFAULTS.url, key: DEFAULTS.key, house: DEFAULTS.house, on: true };
