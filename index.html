@@ -178,6 +178,20 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
   font-size:13px;color:var(--text-secondary);line-height:var(--lh-normal);
   white-space:pre-wrap;overflow-wrap:anywhere;
 }
+/* レシートの写真 */
+.rcrow{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.rcthumb{
+  width:56px;height:56px;flex:none;border-radius:var(--radius-md);object-fit:cover;
+  background:var(--surface-sunken);color:var(--text-tertiary);
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.rctxt{flex:1;min-width:0;font-size:14px;font-weight:600}
+.rcbtns{display:flex;gap:8px;flex-wrap:wrap}
+.dialog.rcview{max-width:520px}
+.rcview img{
+  display:block;width:100%;max-height:62vh;object-fit:contain;margin:12px 0 16px;
+  border-radius:var(--radius-md);background:var(--surface-sunken);
+}
 .dupcard .pair + .pair{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border-subtle)}
 .inset > .ttl{
   display:block;font-size:14px;font-weight:700;
@@ -564,11 +578,15 @@ var S = {
   notDup: [],
   // 毎月の固定費（家賃など）の登録。登録した端末が記録を作り、
   // できた記録は同期で相手に届きます。登録そのものは同期しません
-  fixed: []
+  fixed: [],
+  // レシートの写真がある記録の id。写真そのものはSupabaseにだけ置き、
+  // 見るときに取りに行きます（端末の保存領域はすぐ一杯になるため）
+  receipts: {}
 };
 var UI = {
   tab: "home", filter: "未精算", scope: "未精算", month: "", payer: "",
   editId: null, form: null, payerOpen: false, fixedEdit: null, fform: null,
+  rcCache: {}, rcReading: false, rcSending: 0, rcErr: "", viewRc: null,
   parsed: null, csvText: "", importPayer: "A", parseError: "",
   fileName: "", showPaste: false, reading: false,
   formError: "", notice: "", saveError: false, saving: false,
@@ -674,6 +692,9 @@ var PATHS = {
   chevDown: '<path d="M6 9.5 12 15.5 18 9.5"/>',
   sync: '<path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5"/><path d="M4 4.5V9h4.5"/><path d="M4 12.5a8 8 0 0 0 13.7 5.2L20 15.5"/><path d="M20 19.5V15h-4.5"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  camera: '<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5Z"/><circle cx="12" cy="13" r="3.5"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m21 16-5-5-9 9"/>',
+  receipt: '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21Z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   eye: '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   eyeOff: '<path d="M9.9 5.7A10.6 10.6 0 0 1 12 5.5c6.2 0 10 6.5 10 6.5a18.6 18.6 0 0 1-3.2 4"/><path d="M6.4 7.9A18.4 18.4 0 0 0 2 12s3.8 6.5 10 6.5a10.8 10.8 0 0 0 3.4-.55"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/>',
   book: '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H18a2 2 0 0 1 2 2v13.5"/><path d="M4 4.5v13A2.5 2.5 0 0 0 6.5 20H20"/><path d="M8 8h8M8 12h6"/>'
@@ -756,6 +777,143 @@ function similarTo(f, exceptId) {
   var probe = { amount: Number(f.amount) || 0, date: f.date };
   if (!probe.amount) return [];
   return S.entries.filter(function (e) { return e.id !== exceptId && looksDup(probe, e); });
+}
+
+/* ── レシートの写真 ─────────────────────────────────────────
+   ・端末の中で縮めてJPEGにし直してから送ります。
+     描き直すので、写真に付いている撮影場所などの情報も落ちます。
+   ・写真の保存には同期の設定が要ります。
+   ───────────────────────────────────────────────────────── */
+var RC_MAX = 400000;   // base64の文字数。Supabase側の上限（450000）より少し小さく
+function shrinkImage(file) {
+  return new Promise(function (resolve, reject) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var w = img.naturalWidth, h = img.naturalHeight;
+      // 細長いレシートでも文字が読めるよう、長い辺で2000pxまで残します
+      var sc = Math.min(1, 2000 / Math.max(w, h)), q = 0.8;
+      function draw() {
+        var c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(w * sc));
+        c.height = Math.max(1, Math.round(h * sc));
+        var g = c.getContext("2d");
+        g.fillStyle = "#fff";
+        g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(img, 0, 0, c.width, c.height);
+        return c.toDataURL("image/jpeg", q).split(",")[1] || "";
+      }
+      var data = draw();
+      for (var i = 0; i < 10 && data.length > RC_MAX; i++) {
+        if (q > 0.55) q -= 0.1; else sc *= 0.8;
+        data = draw();
+      }
+      if (!data || data.length > RC_MAX) reject(new Error("写真を小さくできませんでした。別の写真でお試しください。"));
+      else resolve(data);
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      reject(new Error("この写真は読み込めませんでした。別の写真でお試しください。"));
+    };
+    img.src = url;
+  });
+}
+function rcError(err) {
+  var raw = (err && err.raw) || "";
+  if (err && err.status === 404) {
+    return "レシートを保存する準備がまだのようです。Supabaseでレシート用のSQLを実行してください。";
+  }
+  if (raw.indexOf("too many receipts") >= 0) return "レシートの保存数が上限（1000枚）に達しました。";
+  if (raw.indexOf("receipt too large") >= 0) return "写真が大きすぎて保存できませんでした。";
+  return (err && err.message) || "レシートを保存できませんでした。";
+}
+function uploadReceipt(id, data) {
+  UI.rcCache[id] = data;
+  UI.rcSending++;
+  render();
+  return callSync("warikan_receipt_put", { p_key: S.sync.house, p_entry: id, p_data: data })
+    .then(function () {
+      S.receipts[id] = true;
+      UI.rcErr = "";
+      persistOnly();
+    }).catch(function (err) {
+      delete UI.rcCache[id];
+      UI.rcErr = rcError(err);
+    }).then(function () {
+      UI.rcSending--;
+      render();
+    });
+}
+function removeReceipt(id) {
+  delete S.receipts[id];
+  delete UI.rcCache[id];
+  persistOnly();
+  render();
+  if (!syncReady()) return;
+  // 失敗しても、次の同期で「まだある」と分かれば印が戻ります
+  callSync("warikan_receipt_del", { p_key: S.sync.house, p_entry: id })
+    .catch(function (err) { UI.rcErr = rcError(err); render(); });
+}
+function fetchReceipt(id) {
+  if (UI.rcCache[id] || !syncReady()) return;
+  callSync("warikan_receipt_get", { p_key: S.sync.house, p_entry: id }).then(function (res) {
+    if (res && res.data) UI.rcCache[id] = res.data;
+    else { delete S.receipts[id]; persistOnly(); UI.rcErr = "この記録のレシートは見つかりませんでした。"; UI.viewRc = null; }
+    render();
+  }).catch(function (err) {
+    UI.rcErr = rcError(err); UI.viewRc = null; render();
+  });
+}
+// data: のままでは新しいタブで開けないため、Blobにして開きます。拡大して読めるように
+function openReceipt(id) {
+  var data = UI.rcCache[id];
+  if (!data) return;
+  var bin = atob(data), buf = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  window.open(URL.createObjectURL(new Blob([buf], { type: "image/jpeg" })), "_blank");
+}
+
+function receiptFieldHtml(f) {
+  var h = '<div><span class="label">レシート（なくても大丈夫です）</span>';
+  if (!syncReady()) {
+    return h + '<p class="muted" style="margin:0">レシートの写真は、同期を設定していると残せます（設定→ふたりで同期する）。</p></div>';
+  }
+  var saved = UI.editId && S.receipts[UI.editId] && !f.rcRemove;
+  var has = !!f.rcData || saved;
+  if (has) {
+    var src = f.rcData || (saved ? UI.rcCache[UI.editId] : "");
+    h += '<div class="rcrow">' +
+      (src ? '<img class="rcthumb" src="data:image/jpeg;base64,' + src + '" alt="レシート">'
+           : '<span class="rcthumb">' + icon("receipt", 22) + '</span>') +
+      '<span class="rctxt">' + (f.rcData ? "この写真を保存します" : "保存済みです") + '</span>' +
+      '<button type="button" class="toggle-link" data-act="rcClear">外す</button></div>';
+  }
+  if (UI.rcReading) h += '<p class="muted" style="margin:0 0 10px">写真を読み込んでいます…</p>';
+  return h + '<div class="rcbtns">' +
+    btn(has ? "撮り直す" : "撮影する", { variant: "secondary", size: "sm", icon: "camera", action: "rcPick", id: "rcCam" }) +
+    btn(has ? "選び直す" : "写真から選ぶ", { variant: "secondary", size: "sm", icon: "image", action: "rcPick", id: "rcLib" }) +
+    '</div>' +
+    '<input type="file" id="rcCam" accept="image/*" capture="environment" data-receipt="1" style="display:none">' +
+    '<input type="file" id="rcLib" accept="image/*" data-receipt="1" style="display:none">' +
+    '</div>';
+}
+
+function receiptViewerHtml() {
+  var id = UI.viewRc;
+  if (!id) return "";
+  var e = S.entries.filter(function (x) { return x.id === id; })[0];
+  var data = UI.rcCache[id];
+  return '<div class="backdrop">' +
+    '<div class="dialog rcview" id="rcdlg" role="dialog" aria-modal="true" aria-labelledby="rcTitle" tabindex="-1">' +
+    '<h3 id="rcTitle">レシート</h3>' +
+    (e ? '<p>' + esc(jpDate(e.date) + "　" + (e.title || "（無題）") + "　" + yen(e.amount)) + '</p>' : '') +
+    (data ? '<img src="data:image/jpeg;base64,' + data + '" alt="レシートの写真">'
+          : '<p class="muted" style="text-align:center;padding:48px 0">読み込んでいます…</p>') +
+    '<div class="rowacts">' +
+    btn("閉じる", { variant: "quiet", action: "closeRc" }) +
+    btn("大きく見る", { variant: "secondary", action: "openRc", id: id, disabled: !data }) +
+    '</div></div></div>';
 }
 
 /* ── 毎月の固定費 ───────────────────────────────────────────
@@ -932,7 +1090,7 @@ function callSync(fn, body) {
     if (!res.ok) {
       return res.text().then(function (t) {
         var lower = String(t || "").toLowerCase();
-        throw new Error(
+        var err = new Error(
           lower.indexOf("unknown key") >= 0
             ? "共有キーが違うようです。SQLの実行結果に出た値と見比べてください。"
           : lower.indexOf("too many") >= 0
@@ -942,6 +1100,9 @@ function callSync(fn, body) {
           : res.status === 401 || res.status === 403
             ? "APIキーが違うようです。anon public のキーをご確認ください。"
             : "同期できませんでした（" + res.status + "）");
+        err.status = res.status;
+        err.raw = lower;
+        throw err;
       });
     }
     return res.json();
@@ -968,6 +1129,13 @@ function merge(remote) {
       if (a.date !== b.date) return a.date < b.date ? 1 : -1;
       return (b.updatedAt || 0) - (a.updatedAt || 0);
     });
+
+  // 写真のある記録。SQLを流す前のSupabaseからは届かないので、そのときは手元のまま
+  if (Array.isArray(remote.receipts)) {
+    var rc = {};
+    remote.receipts.forEach(function (id) { rc[id] = true; });
+    S.receipts = rc;
+  }
 
   // 表示名は、あとから変えたほうを採用する
   var remoteAt = remote.namesUpdatedAt ? new Date(remote.namesUpdatedAt).getTime() : 0;
@@ -1030,7 +1198,7 @@ function persistOnly() {
   return Store.save({
     names: S.names, entries: S.entries, book: S.book,
     sync: S.sync, namesUpdatedAt: S.namesUpdatedAt, trash: S.trash || [],
-    me: S.me, notDup: S.notDup, fixed: S.fixed
+    me: S.me, notDup: S.notDup, fixed: S.fixed, receipts: S.receipts
   }).then(function () {
     UI.saving = false; UI.saveError = false; paintStatus();
   }).catch(function () {
@@ -1286,6 +1454,7 @@ function formHtml(f, adding) {
       '<textarea class="ta" data-input="note" style="height:72px" placeholder="' +
       (f.fixed ? "契約の更新月 など" : "楽天の注文：洗剤、トイレットペーパー など") + '">' +
       esc(f.note || "") + '</textarea>') +
+    (f.fixed ? '' : receiptFieldHtml(f)) +
     '<div class="inset"><span class="ttl">個人的なものが混ざっていたら</span>' +
       '<p class="muted" style="margin:0 0 14px">その金額を先に引いてから折半します。無ければ空欄のままで大丈夫です。</p>' +
       '<div class="grid2">' +
@@ -1326,6 +1495,9 @@ function entryHtml(r) {
     '<button data-act="edit" data-id="' + r.id + '">' + icon("pencil", 16) + '編集</button>' +
     '<button data-act="toggle" data-id="' + r.id + '" class="' + (r.settled ? '' : 'brand') + '">' +
     icon(r.settled ? "undo" : "check", 16) + (r.settled ? "未精算" : "精算済み") + '</button>' +
+    (S.receipts[r.id]
+      ? '<button data-act="viewRc" data-id="' + r.id + '">' + icon("receipt", 16) + 'レシート</button>'
+      : '') +
     '<span class="spacer"></span>' +
     '<button data-act="askDel" data-id="' + r.id + '" class="danger">' + icon("trash", 16) + '削除</button>' +
     '</div>';
@@ -1607,6 +1779,7 @@ function guideHtml() {
     '入力していくと画面の下に折半の結果が出るので、その場で確かめられます。</p>' +
     '<p>記録したあとも日付・立替者・支払手段はそのまま残るので、同じ日の買い物を続けて入れるときは金額と内容だけで足ります。</p>' +
     '<p>立て替えた人は、一度選ぶとこの端末で覚えておき、次からは固定で表示されます。ほかの人の分を入れるときだけ<b>変える</b>を押してください。</p>' +
+    '<p>メモ欄には、楽天の注文の中身などを自由に書き残せます。同期していれば、レシートの写真も1枚付けられます（撮影するか、写真から選びます）。</p>' +
     '<p>金額と日付が近い記録がすでにあると、記録する前に知らせます。あとからまとめて見るときは、一覧の上の知らせか、設定の<b>重複の確認</b>から開けます。</p>' +
     '<div class="note info">まちがえて記録しても、一覧の<b>編集</b>からいつでも直せます。</div>');
 
@@ -2001,6 +2174,13 @@ function render() {
     h += '<div class="notice err" role="alert"><span class="txt">' + esc(UI.syncErr) + '</span>' +
       btn("設定を見る", { variant: "danger", size: "sm", action: "goSync" }) + '</div>';
   }
+  if (UI.rcSending) {
+    h += '<div class="notice info"><span class="txt">レシートの写真を送っています…</span></div>';
+  }
+  if (UI.rcErr) {
+    h += '<div class="notice err" role="alert"><span class="txt">' + esc(UI.rcErr) + '</span>' +
+      '<button class="link" data-act="closeRcErr">閉じる</button></div>';
+  }
   if (UI.notice) {
     h += '<div class="notice info"><span style="display:inline-flex">' + icon("check", 18) + '</span>' +
       '<span class="txt" style="font-size:14px;font-weight:700">' + esc(UI.notice) + '</span>' +
@@ -2022,14 +2202,15 @@ function render() {
 
   h += tabbarHtml();
   h += confirmDialogHtml();
+  if (!UI.confirm) h += receiptViewerHtml();
 
   app.innerHTML = h;
 
   // 確認中は背面を動かさず、操作の焦点をダイアログに移す
-  document.body.style.overflow = UI.confirm ? "hidden" : "";
-  if (UI.confirm) {
-    var dlg = document.getElementById("dlg");
-    if (dlg) dlg.focus();
+  document.body.style.overflow = UI.confirm || UI.viewRc ? "hidden" : "";
+  if (UI.confirm || UI.viewRc) {
+    var dlg = document.getElementById(UI.confirm ? "dlg" : "rcdlg");
+    if (dlg && document.activeElement !== dlg) dlg.focus();
   }
 }
 
@@ -2107,6 +2288,21 @@ document.addEventListener("click", function (ev) {
       UI.tab = "dups"; render(); window.scrollTo(0, 0); break;
     case "goHome": UI.tab = "home"; render(); window.scrollTo(0, 0); break;
     case "openPayer": UI.payerOpen = true; render(); break;
+
+    case "rcPick": {
+      var picker2 = document.getElementById(id);
+      if (picker2) picker2.click();
+      break;
+    }
+    case "rcClear": {
+      var rf = activeForm();
+      if (rf.rcData) rf.rcData = ""; else rf.rcRemove = true;
+      render(); break;
+    }
+    case "viewRc": UI.viewRc = id; render(); fetchReceipt(id); break;
+    case "closeRc": UI.viewRc = null; render(); break;
+    case "openRc": openReceipt(id); break;
+    case "closeRcErr": UI.rcErr = ""; render(); break;
 
     case "newFixed":
       UI.fixedEdit = "new"; UI.formError = "";
@@ -2203,6 +2399,7 @@ document.addEventListener("click", function (ev) {
         persistOnly(); render();
       } else if (q.kind === "del") {
         UI.notice = "削除しました";
+        if (S.receipts[q.id]) removeReceipt(q.id);
         change(function () {
           S.trash = (S.trash || []).concat(
             S.entries.filter(function (x) { return x.id === q.id; })
@@ -2221,27 +2418,34 @@ document.addEventListener("click", function (ev) {
       var keep = { date: UI.form.date, payer: UI.form.payer, method: UI.form.method };
       var e = Object.assign({ id: uid() }, fromForm(UI.form),
         { settled: false, settledOn: "", txnId: "", source: "manual", updatedAt: Date.now() });
+      var newRc = UI.form.rcData;
       S.me = e.payer;
       change(function () { S.entries = [e].concat(S.entries); });
       UI.form = Object.assign(blankForm(), keep);
       // 誰の立て替えにしたかを言葉でも返し、選び違いに気づけるようにします
       UI.formError = ""; UI.notice = S.names[e.payer] + "の立て替えとして記録しました"; UI.tab = "home"; render();
+      if (newRc) uploadReceipt(e.id, newRc);
       break;
     }
 
     case "edit": UI.editId = id; UI.formError = "";
-      UI.form = toForm(S.entries.filter(function (x) { return x.id === id; })[0]); render(); break;
+      UI.form = toForm(S.entries.filter(function (x) { return x.id === id; })[0]); render();
+      if (S.receipts[id]) fetchReceipt(id);
+      break;
     case "cancelEdit": UI.editId = null; UI.form = null; UI.formError = ""; render(); break;
     case "saveEdit": {
       var m2 = validate(UI.form);
       if (m2) { UI.formError = m2; render(); break; }
       var next = fromForm(UI.form);
+      var editRc = UI.form.rcData, dropRc = UI.form.rcRemove;
       change(function () {
         S.entries = S.entries.map(function (x) {
           return x.id === id ? Object.assign({}, x, next, { updatedAt: Date.now() }) : x;
         });
       });
       UI.editId = null; UI.form = null; UI.formError = ""; render();
+      if (editRc) uploadReceipt(id, editRc);
+      else if (dropRc) removeReceipt(id);
       break;
     }
 
@@ -2353,6 +2557,20 @@ document.addEventListener("change", function (ev) {
   var sel = ev.target && ev.target.dataset && ev.target.dataset.select;
   if (sel === "month") { UI.month = ev.target.value; render(); return; }
   if (sel === "payer") { UI.payer = ev.target.value; render(); return; }
+  if (ev.target && ev.target.dataset && ev.target.dataset.receipt) {
+    var pic = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!pic) return;
+    UI.rcReading = true; UI.formError = ""; render();
+    shrinkImage(pic).then(function (data) {
+      var f = activeForm();
+      if (f) { f.rcData = data; f.rcRemove = false; }
+      UI.rcReading = false; render();
+    }).catch(function (err) {
+      UI.rcReading = false; UI.formError = err.message; render();
+    });
+    return;
+  }
   if (ev.target && ev.target.id === "file") {
     readCsvFile(ev.target.files && ev.target.files[0]);
     ev.target.value = "";
@@ -2413,6 +2631,7 @@ Store.load().then(function (d) {
     if (d.me === "A" || d.me === "B") S.me = d.me;
     if (Array.isArray(d.notDup)) S.notDup = d.notDup;
     if (Array.isArray(d.fixed)) S.fixed = d.fixed;
+    if (d.receipts && typeof d.receipts === "object") S.receipts = d.receipts;
   }
   UI.importPayer = S.me || "A";
   // 招待リンクがあれば取り込む。
@@ -2456,6 +2675,7 @@ document.addEventListener("visibilitychange", function () {
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (UI.confirm) { UI.confirm = null; render(); }
+  else if (UI.viewRc) { UI.viewRc = null; render(); }
   else if (UI.editId) { UI.editId = null; UI.form = null; UI.formError = ""; render(); }
 });
 </script>
