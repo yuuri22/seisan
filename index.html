@@ -556,11 +556,14 @@ var S = {
   // 端末ごとに違うものなので、同期には載せません
   me: "",
   // 「重複ではない」と確かめた組（id|id）。これも端末の中だけに残します
-  notDup: []
+  notDup: [],
+  // 毎月の固定費（家賃など）の登録。登録した端末が記録を作り、
+  // できた記録は同期で相手に届きます。登録そのものは同期しません
+  fixed: []
 };
 var UI = {
   tab: "home", filter: "未精算", scope: "未精算", month: "", payer: "",
-  editId: null, form: null, payerOpen: false,
+  editId: null, form: null, payerOpen: false, fixedEdit: null, fform: null,
   parsed: null, csvText: "", importPayer: "A", parseError: "",
   fileName: "", showPaste: false, reading: false,
   formError: "", notice: "", saveError: false, saving: false,
@@ -748,6 +751,55 @@ function similarTo(f, exceptId) {
   var probe = { amount: Number(f.amount) || 0, date: f.date };
   if (!probe.amount) return [];
   return S.entries.filter(function (e) { return e.id !== exceptId && looksDup(probe, e); });
+}
+
+/* ── 毎月の固定費 ───────────────────────────────────────────
+   家賃のように毎月同じ支払いを、決まった日が来たら記録します。
+   ・どこまで記録したかを lastYm に残し、その次の月から作ります。
+     作った記録を消したり直したりしても、作り直すことはありません。
+   ・記録の id は「固定費と月」から決めます。万一二度作ろうとしても、
+     同期で同じ記録として重なり、二重にはなりません。
+   ───────────────────────────────────────────────────────── */
+function nextYm(ym) {
+  var y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) + 1;
+  if (m > 12) { y++; m = 1; }
+  return y + "-" + (m < 10 ? "0" : "") + m;
+}
+// 31日のような日は、その月に無ければ月末にします
+function dayIn(ym, day) {
+  var last = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).getUTCDate();
+  var d = Math.min(Number(day) || 1, last);
+  return ym + "-" + (d < 10 ? "0" : "") + d;
+}
+function fixedNext(t) {
+  return dayIn(t.lastYm ? nextYm(t.lastYm) : t.startYm, t.day);
+}
+function runFixed() {
+  var now = today(), made = [], touched = false;
+  (S.fixed || []).forEach(function (t) {
+    // 開始の月を大きく昔にしてしまっても、作りすぎないよう3年分で止めます
+    for (var n = 0; n < 36; n++) {
+      var ym = t.lastYm ? nextYm(t.lastYm) : t.startYm;
+      var d = dayIn(ym, t.day);
+      if (d > now) break;
+      made.push({ id: "fx-" + t.id + "-" + ym, date: d, title: t.title, amount: t.amount,
+        payer: t.payer, method: t.method,
+        aPersonal: t.aPersonal || 0, aPersonalNote: t.aPersonalNote || "",
+        bPersonal: t.bPersonal || 0, bPersonalNote: t.bPersonalNote || "",
+        txnId: "", settled: false, settledOn: "", source: "fixed", updatedAt: Date.now() });
+      t.lastYm = ym;
+      touched = true;
+    }
+  });
+  if (!touched) return;
+  var have = {};
+  S.entries.forEach(function (e) { have[e.id] = true; });
+  made = made.filter(function (e) { return !have[e.id]; });
+  if (!made.length) { persistOnly(); return; }
+  UI.notice = "固定費を記録しました：" + made.map(function (e) {
+    return ymLabel(ymOf(e.date)) + "の" + e.title;
+  }).join("、");
+  change(function () { S.entries = made.concat(S.entries); });
 }
 
 /* ── PayPay CSV ──────────────────────────────────────────── */
@@ -968,7 +1020,7 @@ function persistOnly() {
   return Store.save({
     names: S.names, entries: S.entries, book: S.book,
     sync: S.sync, namesUpdatedAt: S.namesUpdatedAt, trash: S.trash || [],
-    me: S.me, notDup: S.notDup
+    me: S.me, notDup: S.notDup, fixed: S.fixed
   }).then(function () {
     UI.saving = false; UI.saveError = false; paintStatus();
   }).catch(function () {
@@ -1077,6 +1129,21 @@ function validate(f) {
   if (ap + bp > amount) return "個人分の合計が金額を超えています。";
   return "";
 }
+function fixedError(f) {
+  var d = Number(f.day);
+  if (!(d >= 1 && d <= 31 && d === Math.floor(d))) return "毎月の日は 1〜31 で入れてください。";
+  if (!f.started && !/^\d{4}-\d{2}$/.test(f.startYm || "")) return "最初に記録する月を選んでください。";
+  return "";
+}
+function fixedFromForm(f) {
+  if (fixedError(f)) return null;
+  var e = fromForm(f);
+  delete e.date;
+  e.day = Number(f.day);
+  e.startYm = f.startYm;
+  e.lastYm = f.lastYm || "";
+  return e;
+}
 function fromForm(f) {
   return { date: f.date, title: f.title.trim(), amount: Number(f.amount), payer: f.payer, method: f.method,
     aPersonal: Number(f.aPersonal) || 0, aPersonalNote: f.aPersonalNote.trim(),
@@ -1145,7 +1212,16 @@ function previewHtml(f) {
     '<div class="line"><span>' + esc(S.names.B) + 'の負担</span><b class="num">' + yen(r.bOwe) + '</b></div>' +
     '<div class="line total"><span style="color:var(--text-primary)">この1件の精算</span>' +
     '<b class="num" style="color:var(--brand-strong)">' + esc(dir) + '</b></div>' +
-    '</div>' + similarHtml(f) + '</div>';
+    '</div>' + (f.fixed ? fixedWhenHtml(f) : similarHtml(f)) + '</div>';
+}
+function fixedWhenHtml(f) {
+  var t = fixedFromForm(f);
+  if (!t) return "";
+  var d = fixedNext(t);
+  return '<div class="notice info" style="margin-top:12px"><span class="txt">' +
+    (d <= today() ? "保存するとすぐ、" + esc(jpDate(d)) + "分を記録します。"
+      : "次は " + esc(ymLabel(ymOf(d)) + Number(d.slice(8)) + "日") + " に記録します。") +
+    '</span></div>';
 }
 
 /* 記録する前に、同じ支払いがもう入っていないかを知らせます。
@@ -1176,11 +1252,18 @@ function payerHtml(f, adding) {
 
 function formHtml(f, adding) {
   return '<div class="stack">' +
-    field("何に使いましたか？", input("title", f.title, { placeholder: "スーパー、ドラッグストア など" })) +
+    field("何に使いましたか？", input("title", f.title,
+      { placeholder: f.fixed ? "家賃、光熱費 など" : "スーパー、ドラッグストア など" })) +
     '<div class="grid2">' +
-      field("金額", input("amount", f.amount, { inputmode: "numeric", prefix: "¥", placeholder: "4,000" })) +
-      field("日付", input("date", f.date, { type: "date" })) +
+      field("金額", input("amount", f.amount, { inputmode: "numeric", prefix: "¥", placeholder: f.fixed ? "80,000" : "4,000" })) +
+      (f.fixed
+        ? field("毎月の日", input("day", f.day, { inputmode: "numeric", placeholder: "27" }), "その月に無い日は月末")
+        : field("日付", input("date", f.date, { type: "date" }))) +
     '</div>' +
+    (f.fixed && !f.started
+      ? field("最初に記録する月", input("startYm", f.startYm, { type: "month" }),
+          "今月分をもう手で記録しているなら、来月にしてください。")
+      : '') +
     payerHtml(f, adding) +
     '<div><span class="label">支払手段</span><div class="chips">' +
       METHODS.map(function (m) {
@@ -1204,7 +1287,8 @@ function entryHtml(r) {
   var dir = r.balance > 0 ? S.names.B + " → " + S.names.A : S.names.A + " → " + S.names.B;
   var h = '<div class="entry">' + catIcon(r.method) +
     '<div class="body"><div class="title">' + esc(r.title) + '</div>' +
-    '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span></div></div>' +
+    '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span>' +
+    (r.source === "fixed" ? '<span>毎月の固定費</span>' : '') + '</div></div>' +
     '<div class="right"><div class="amt num">' + yen(r.amount) + '</div>' +
     '<div class="bal num"' + (r.balance === 0 ? ' style="color:var(--text-tertiary)"' : '') + '>' +
     (r.balance === 0 ? "—" : esc(yen(Math.abs(r.balance)) + " " + dir)) + '</div></div></div>';
@@ -1318,7 +1402,7 @@ function homeHtml() {
 }
 
 function dupSideHtml(r) {
-  var src = r.source === "paypay" ? "PayPay取込" : "手入力";
+  var src = r.source === "paypay" ? "PayPay取込" : r.source === "fixed" ? "固定費" : "手入力";
   return '<div class="pair"><div class="entry">' + catIcon(r.method, true) +
     '<div class="body"><div class="title">' + esc(r.title || "（無題）") + '</div>' +
     '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span>' +
@@ -1350,6 +1434,35 @@ function dupsHtml() {
     }).join("");
   }
   return h + btn("記録の一覧に戻る", { block: true, variant: "quiet", action: "goHome" }) + '</div>';
+}
+
+function fixedHtml() {
+  function editor() {
+    return '<div style="border-top:1px solid var(--border-subtle);padding-top:14px"><div class="stack">' +
+      formHtml(UI.fform) +
+      '<div class="rowacts">' + btn("やめる", { variant: "quiet", action: "cancelFixed" }) +
+      btn("保存する", { action: "saveFixed" }) + '</div></div></div>';
+  }
+  var h = '<section><h2 class="sect">毎月の固定費</h2><div class="card" style="display:grid;gap:12px">' +
+    '<p class="muted" style="margin:0">家賃など、毎月同じ支払いを登録しておくと、決まった日に自動で記録します。</p>';
+  S.fixed.forEach(function (t) {
+    if (UI.fixedEdit === t.id) { h += editor(); return; }
+    h += '<div><div class="entry">' + catIcon(t.method, true) +
+      '<div class="body"><div class="title">' + esc(t.title) + '</div>' +
+      '<div class="sub"><span>毎月' + t.day + '日・' + esc(S.names[t.payer]) + 'が立て替え</span></div></div>' +
+      '<div class="right"><div class="amt num">' + yen(t.amount) + '</div></div></div>' +
+      '<div class="acts" style="align-items:center"><span class="muted">次は ' + esc(jpDate(fixedNext(t))) + '</span>' +
+      '<span class="spacer"></span>' +
+      '<button data-act="editFixed" data-id="' + t.id + '">' + icon("pencil", 16) + '編集</button>' +
+      '<button data-act="askDelFixed" data-id="' + t.id + '" class="danger">' + icon("trash", 16) + '削除</button>' +
+      '</div></div>';
+  });
+  if (UI.fixedEdit === "new") h += editor();
+  else if (!UI.fixedEdit) h += btn("固定費を登録する", { block: true, variant: "secondary", action: "newFixed", icon: "plus" });
+  // 登録は端末の中にだけあるので、両方で登録すると二重になります
+  h += '<p class="muted" style="margin:0">記録されるのは、登録したこの端末でアプリを開いたときです。' +
+    '相手の端末には、記録された分が同期で届きます。同じ固定費を両方の端末で登録すると二重になるため、どちらか一方だけで登録してください。</p>';
+  return h + '</div></section>';
 }
 
 function importHtml() {
@@ -1628,6 +1741,8 @@ function settingsHtml() {
           : S.sync.on ? "まだ一度も同期できていません。" : "同期は止まっています。") + '</div>') +
     '</div></section>';
 
+  h += fixedHtml();
+
   h += '<section><h2 class="sect">重複の確認</h2><div class="card" style="display:grid;gap:12px">' +
     '<p class="muted" style="margin:0">金額と日付が近い記録を並べて、二重に記録していないかを確かめられます。</p>' +
     btn("似た記録を探す", { block: true, variant: "secondary", action: "goDups", icon: "list" }) +
@@ -1710,7 +1825,16 @@ function confirmDialogHtml() {
 
   var title, body, note = "", extra = "", okLabel, okVariant = "primary";
 
-  if (q.kind === "settleAll") {
+  if (q.kind === "delFixed") {
+    var ft = S.fixed.filter(function (x) { return x.id === q.id; })[0];
+    if (!ft) return "";
+    title = "この固定費の登録をやめますか？";
+    body = "次からは自動で記録されなくなります。";
+    extra = amountBox(yen(Number(ft.amount) || 0), "毎月" + ft.day + "日　" + esc(ft.title));
+    note = "これまでに記録された分は、一覧に残ります。";
+    okLabel = "登録をやめる";
+    okVariant = "danger";
+  } else if (q.kind === "settleAll") {
     var open = rows().filter(function (r) { return !r.settled; });
     var un = open.filter(function (r) { return inScope(r, q.month, q.payer); });
     var rest = open.length - un.length;
@@ -1906,11 +2030,15 @@ function paintStatus() {
   var el = document.getElementById("status");
   if (el) el.textContent = UI.saving ? "保存中…" : UI.saveError ? "未保存" : "自動保存";
 }
+function activeForm() {
+  return UI.tab === "set" && UI.fixedEdit ? UI.fform : UI.form;
+}
 function repaintPreview() {
   var el = document.getElementById("preview");
-  if (el && UI.form) {
+  var f = activeForm();
+  if (el && f) {
     var tmp = document.createElement("div");
-    tmp.innerHTML = previewHtml(UI.form);
+    tmp.innerHTML = previewHtml(f);
     el.replaceWith(tmp.firstChild);
   }
 }
@@ -1927,6 +2055,7 @@ document.addEventListener("click", function (ev) {
 
   if (t.dataset.tab) {
     UI.tab = t.dataset.tab; UI.formError = ""; UI.payerOpen = false;
+    UI.fixedEdit = null; UI.fform = null;
     // 編集中の中身を持ったまま「追加」を開くと、その記録の内容が入ってしまうため捨てます
     if (UI.tab !== "home" && UI.editId) { UI.editId = null; UI.form = null; }
     if (UI.tab === "add" && !UI.form) UI.form = blankForm();
@@ -1936,12 +2065,12 @@ document.addEventListener("click", function (ev) {
     return;
   }
 
-  if (t.dataset.method) { UI.form.method = t.dataset.method; UI.formError = ""; render(); return; }
+  if (t.dataset.method) { activeForm().method = t.dataset.method; UI.formError = ""; render(); return; }
 
   if (t.dataset.seg) {
     var v = t.dataset.value, n = t.dataset.seg;
     if (n === "payer") {
-      UI.form.payer = v;
+      activeForm().payer = v;
       // 追加のときに選んだ人は、この端末で覚えておきます
       if (UI.tab === "add") { S.me = v; UI.payerOpen = false; persistOnly(); }
       render();
@@ -1961,6 +2090,40 @@ document.addEventListener("click", function (ev) {
       UI.tab = "dups"; render(); window.scrollTo(0, 0); break;
     case "goHome": UI.tab = "home"; render(); window.scrollTo(0, 0); break;
     case "openPayer": UI.payerOpen = true; render(); break;
+
+    case "newFixed":
+      UI.fixedEdit = "new"; UI.formError = "";
+      UI.fform = Object.assign(blankForm(), { fixed: true, day: "", startYm: ymOf(today()), started: false });
+      render(); break;
+    case "editFixed": {
+      var ft = S.fixed.filter(function (x) { return x.id === id; })[0];
+      if (!ft) break;
+      UI.fixedEdit = id; UI.formError = "";
+      UI.fform = Object.assign(toForm(Object.assign({ date: "" }, ft)),
+        { fixed: true, day: String(ft.day), startYm: ft.startYm, lastYm: ft.lastYm || "", started: !!ft.lastYm });
+      render(); break;
+    }
+    case "cancelFixed": UI.fixedEdit = null; UI.fform = null; UI.formError = ""; render(); break;
+    case "saveFixed": {
+      var fe = validate(UI.fform) || fixedError(UI.fform);
+      if (fe) { UI.formError = fe; render(); break; }
+      var tpl = fixedFromForm(UI.fform);
+      if (UI.fixedEdit === "new") {
+        S.fixed = S.fixed.concat([Object.assign({ id: uid() }, tpl)]);
+      } else {
+        // 直した内容は、これから記録する分から使います
+        var fid = UI.fixedEdit;
+        S.fixed = S.fixed.map(function (x) {
+          return x.id === fid ? Object.assign({}, x, tpl, { id: fid, lastYm: x.lastYm || "" }) : x;
+        });
+      }
+      UI.fixedEdit = null; UI.fform = null; UI.formError = "";
+      UI.notice = "固定費を保存しました";
+      persistOnly();
+      runFixed();
+      render(); break;
+    }
+    case "askDelFixed": UI.confirm = { kind: "delFixed", id: id }; render(); break;
     case "notDup":
       if (S.notDup.indexOf(id) < 0) S.notDup = S.notDup.concat([id]);
       UI.notice = "この組は、今後は出しません";
@@ -2017,6 +2180,10 @@ document.addEventListener("click", function (ev) {
             });
           });
         });
+      } else if (q.kind === "delFixed") {
+        S.fixed = S.fixed.filter(function (x) { return x.id !== q.id; });
+        UI.notice = "固定費の登録をやめました";
+        persistOnly(); render();
       } else if (q.kind === "del") {
         UI.notice = "削除しました";
         change(function () {
@@ -2153,7 +2320,8 @@ document.addEventListener("input", function (ev) {
       persistOnly();
       return;
     }
-    if (UI.form) { UI.form[n] = el.value; repaintPreview(); }
+    var af = activeForm();
+    if (af) { af[n] = el.value; repaintPreview(); }
     return;
   }
   if (el.dataset && el.dataset.flip) {
@@ -2227,6 +2395,7 @@ Store.load().then(function (d) {
     if (Array.isArray(d.trash)) S.trash = d.trash;
     if (d.me === "A" || d.me === "B") S.me = d.me;
     if (Array.isArray(d.notDup)) S.notDup = d.notDup;
+    if (Array.isArray(d.fixed)) S.fixed = d.fixed;
   }
   UI.importPayer = S.me || "A";
   // 招待リンクがあれば取り込む。
@@ -2253,12 +2422,16 @@ Store.load().then(function (d) {
 
   UI.loading = false;
   render();
+  runFixed();
   if (syncReady()) runSync(true);
 });
 
 /* 画面に戻ってきたときに、相手の変更を取り込む */
 document.addEventListener("visibilitychange", function () {
-  if (!document.hidden && syncReady()) runSync(true);
+  if (document.hidden) return;
+  // 開いたまま日をまたいだときも、固定費の日が来ていれば記録します
+  runFixed();
+  if (syncReady()) runSync(true);
 });
 
 /* Escキーでも確認をやめられるようにする。
