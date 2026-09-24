@@ -173,6 +173,11 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
   background:var(--brand-soft);color:var(--brand-strong);
 }
 .payerlock .who{font-size:16px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.memo{
+  margin-top:10px;padding:8px 12px;border-radius:var(--radius-md);background:var(--surface-sunken);
+  font-size:13px;color:var(--text-secondary);line-height:var(--lh-normal);
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
 .dupcard .pair + .pair{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border-subtle)}
 .inset > .ttl{
   display:block;font-size:14px;font-weight:700;
@@ -786,7 +791,7 @@ function runFixed() {
         payer: t.payer, method: t.method,
         aPersonal: t.aPersonal || 0, aPersonalNote: t.aPersonalNote || "",
         bPersonal: t.bPersonal || 0, bPersonalNote: t.bPersonalNote || "",
-        txnId: "", settled: false, settledOn: "", source: "fixed", updatedAt: Date.now() });
+        note: t.note || "", txnId: "", settled: false, settledOn: "", source: "fixed", updatedAt: Date.now() });
       t.lastYm = ym;
       touched = true;
     }
@@ -888,7 +893,8 @@ function toRemote(e) {
     b_personal: e.bPersonal || 0, b_personal_note: e.bPersonalNote || "",
     txn_id: e.txnId || "", settled: !!e.settled, settled_on: e.settledOn || "",
     source: e.source || "manual", deleted: !!e.deleted,
-    updated_at: new Date(e.updatedAt || Date.now()).toISOString()
+    updated_at: new Date(e.updatedAt || Date.now()).toISOString(),
+    note: e.note || ""
   };
 }
 
@@ -900,7 +906,8 @@ function fromRemote(r) {
     bPersonal: r.b_personal || 0, bPersonalNote: r.b_personal_note || "",
     txnId: r.txn_id || "", settled: !!r.settled, settledOn: r.settled_on || "",
     source: r.source || "manual", deleted: !!r.deleted,
-    updatedAt: new Date(r.updated_at).getTime()
+    updatedAt: new Date(r.updated_at).getTime(),
+    note: r.note || ""
   };
 }
 
@@ -949,6 +956,9 @@ function merge(remote) {
   (remote.entries || []).forEach(function (r) {
     var incoming = fromRemote(r);
     var mine = byId[incoming.id];
+    // Supabaseにメモの列を足す前は、届く記録にメモがありません。
+    // そのときは手元のメモを引き継ぎ、相手の変更でメモが消えないようにします
+    if (mine && !("note" in r)) incoming.note = mine.note || "";
     if (!mine || incoming.updatedAt > mine.updatedAt) byId[incoming.id] = incoming;
   });
 
@@ -1043,14 +1053,14 @@ function sheetHeader() {
   return ["日付", "内容", "金額", "払った人", "支払手段",
     S.names.A + "の個人分", "中身", S.names.B + "の個人分", "中身",
     "共通分", S.names.A + "の負担", S.names.B + "の負担", "貸し借り(＋=B→A)",
-    "精算済み", "精算日", "取引番号"];
+    "精算済み", "精算日", "取引番号", "メモ"];
 }
 function sheetRows() {
   return rows().map(function (r) {
     return [r.date, r.title, r.amount, r.payer === "A" ? S.names.A : S.names.B, r.method || "",
       r.aPersonal || 0, r.aPersonalNote || "", r.bPersonal || 0, r.bPersonalNote || "",
       r.common, r.aOwe, r.bOwe, r.balance,
-      r.settled ? "済" : "", r.settledOn || "", r.txnId || ""];
+      r.settled ? "済" : "", r.settledOn || "", r.txnId || "", r.note || ""];
   });
 }
 function table() { return [sheetHeader()].concat(sheetRows()); }
@@ -1112,11 +1122,12 @@ function copyInvite() {
 
 /* ── フォーム ────────────────────────────────────────────── */
 function blankForm() {
-  return { date: today(), title: "", amount: "", payer: S.me || "A", method: "現金",
+  return { date: today(), title: "", amount: "", payer: S.me || "A", method: "現金", note: "",
     aPersonal: "", aPersonalNote: "", bPersonal: "", bPersonalNote: "" };
 }
 function toForm(e) {
   return { date: e.date, title: e.title, amount: String(e.amount), payer: e.payer, method: e.method || "現金",
+    note: e.note || "",
     aPersonal: e.aPersonal ? String(e.aPersonal) : "", aPersonalNote: e.aPersonalNote || "",
     bPersonal: e.bPersonal ? String(e.bPersonal) : "", bPersonalNote: e.bPersonalNote || "" };
 }
@@ -1146,6 +1157,7 @@ function fixedFromForm(f) {
 }
 function fromForm(f) {
   return { date: f.date, title: f.title.trim(), amount: Number(f.amount), payer: f.payer, method: f.method,
+    note: String(f.note || "").trim(),
     aPersonal: Number(f.aPersonal) || 0, aPersonalNote: f.aPersonalNote.trim(),
     bPersonal: Number(f.bPersonal) || 0, bPersonalNote: f.bPersonalNote.trim() };
 }
@@ -1270,6 +1282,10 @@ function formHtml(f, adding) {
         return '<button type="button" class="chip' + (f.method === m ? ' on' : '') + '" data-method="' + esc(m) + '">' +
           icon(meta(m).icon, 18) + esc(m) + '</button>';
       }).join("") + '</div></div>' +
+    field("メモ（なくても大丈夫です）",
+      '<textarea class="ta" data-input="note" style="height:72px" placeholder="' +
+      (f.fixed ? "契約の更新月 など" : "楽天の注文：洗剤、トイレットペーパー など") + '">' +
+      esc(f.note || "") + '</textarea>') +
     '<div class="inset"><span class="ttl">個人的なものが混ざっていたら</span>' +
       '<p class="muted" style="margin:0 0 14px">その金額を先に引いてから折半します。無ければ空欄のままで大丈夫です。</p>' +
       '<div class="grid2">' +
@@ -1299,6 +1315,7 @@ function entryHtml(r) {
     if (r.bPersonal > 0) parts.push(S.names.B + "の個人分 " + yen(r.bPersonal) + (r.bPersonalNote ? "（" + r.bPersonalNote + "）" : ""));
     h += '<div class="personal">' + esc(parts.join(" / ")) + '</div>';
   }
+  if (r.note) h += '<div class="memo">' + esc(r.note) + '</div>';
   if (r.settled) {
     h += '<div style="margin-top:10px"><span class="badge">精算済み' +
       (r.settledOn ? " " + esc(jpDate(r.settledOn)) : "") + '</span></div>';
