@@ -166,6 +166,14 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
   border-radius:var(--radius-lg);
   padding:16px;
 }
+/* 固定表示の「立て替えた人」。選択中と同じ青で、誰になっているかを一目で見せる */
+.payerlock{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:48px;padding:0 8px 0 18px;border-radius:var(--radius-pill);
+  background:var(--brand-soft);color:var(--brand-strong);
+}
+.payerlock .who{font-size:16px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dupcard .pair + .pair{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border-subtle)}
 .inset > .ttl{
   display:block;font-size:14px;font-weight:700;
   color:var(--text-primary);margin-bottom:4px;
@@ -543,11 +551,16 @@ var S = {
   entries: [],
   book: { lastExportAt: "", pending: 0 },
   sync: { url: "", key: "", house: "", on: false, lastOk: 0 },
-  namesUpdatedAt: 0
+  namesUpdatedAt: 0,
+  // この端末で立て替える人。追加のたびに選び直さなくて済むよう覚えておきます。
+  // 端末ごとに違うものなので、同期には載せません
+  me: "",
+  // 「重複ではない」と確かめた組（id|id）。これも端末の中だけに残します
+  notDup: []
 };
 var UI = {
   tab: "home", filter: "未精算", scope: "未精算", month: "", payer: "",
-  editId: null, form: null,
+  editId: null, form: null, payerOpen: false,
   parsed: null, csvText: "", importPayer: "A", parseError: "",
   fileName: "", showPaste: false, reading: false,
   formError: "", notice: "", saveError: false, saving: false,
@@ -683,6 +696,58 @@ function rows() {
     var c = calc(e);
     return Object.assign({}, e, c);
   });
+}
+
+/* ── 重複の確認 ─────────────────────────────────────────────
+   金額が近く、日付も近い記録を2件ずつ組にして出します。
+   手で入れたものをPayPayからも取り込んだ、ふたりが同じ買い物を
+   それぞれ記録した、といった重なりを見つけるためです。
+   立て替えた人が違っても、同じ支払いの二重記録はありうるので区別しません。
+   ───────────────────────────────────────────────────────── */
+var DUP_DAYS = 3;
+function dayNum(s) {
+  var p = String(s || "").split("-");
+  return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 864e5;
+}
+// 差が2%以内、少なくとも10円までは「似ている」とします
+function nearAmount(a, b) {
+  a = Number(a) || 0; b = Number(b) || 0;
+  if (!a || !b) return false;
+  return Math.abs(a - b) <= Math.max(10, Math.round(Math.max(a, b) * 0.02));
+}
+function looksDup(x, y) {
+  // PayPayの取引番号がどちらにもあれば、それだけで決まります。
+  // 番号が違えば、同じ店で同じ額を2回払った別々の支払いです
+  if (x.txnId && y.txnId) return x.txnId === y.txnId;
+  return nearAmount(x.amount, y.amount) && Math.abs(dayNum(x.date) - dayNum(y.date)) <= DUP_DAYS;
+}
+function dupKey(a, b) { return a < b ? a + "|" + b : b + "|" + a; }
+function dupPairs() {
+  var skip = {};
+  (S.notDup || []).forEach(function (k) { skip[k] = true; });
+  var list = S.entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    for (var j = i + 1; j < list.length; j++) {
+      var x = list[i], y = list[j];
+      // 日付順に並べてあるので、離れたら先を見る必要はありません
+      if (dayNum(y.date) - dayNum(x.date) > DUP_DAYS) break;
+      // 両方とも精算済みなら、もう貸し借りには効かないので出しません
+      if (x.settled && y.settled) continue;
+      if (skip[dupKey(x.id, y.id)] || !looksDup(x, y)) continue;
+      out.push({ a: y, b: x, key: dupKey(x.id, y.id),
+        exact: Number(x.amount) === Number(y.amount) && x.date === y.date });
+    }
+  }
+  return out.sort(function (p, q) {
+    if (p.exact !== q.exact) return p.exact ? -1 : 1;
+    return p.a.date < q.a.date ? 1 : p.a.date > q.a.date ? -1 : 0;
+  });
+}
+function similarTo(f, exceptId) {
+  var probe = { amount: Number(f.amount) || 0, date: f.date };
+  if (!probe.amount) return [];
+  return S.entries.filter(function (e) { return e.id !== exceptId && looksDup(probe, e); });
 }
 
 /* ── PayPay CSV ──────────────────────────────────────────── */
@@ -902,7 +967,8 @@ function persistOnly() {
   paintStatus();
   return Store.save({
     names: S.names, entries: S.entries, book: S.book,
-    sync: S.sync, namesUpdatedAt: S.namesUpdatedAt, trash: S.trash || []
+    sync: S.sync, namesUpdatedAt: S.namesUpdatedAt, trash: S.trash || [],
+    me: S.me, notDup: S.notDup
   }).then(function () {
     UI.saving = false; UI.saveError = false; paintStatus();
   }).catch(function () {
@@ -994,7 +1060,7 @@ function copyInvite() {
 
 /* ── フォーム ────────────────────────────────────────────── */
 function blankForm() {
-  return { date: today(), title: "", amount: "", payer: "A", method: "現金",
+  return { date: today(), title: "", amount: "", payer: S.me || "A", method: "現金",
     aPersonal: "", aPersonalNote: "", bPersonal: "", bPersonalNote: "" };
 }
 function toForm(e) {
@@ -1079,18 +1145,43 @@ function previewHtml(f) {
     '<div class="line"><span>' + esc(S.names.B) + 'の負担</span><b class="num">' + yen(r.bOwe) + '</b></div>' +
     '<div class="line total"><span style="color:var(--text-primary)">この1件の精算</span>' +
     '<b class="num" style="color:var(--brand-strong)">' + esc(dir) + '</b></div>' +
-    '</div></div>';
+    '</div>' + similarHtml(f) + '</div>';
 }
 
-function formHtml(f) {
+/* 記録する前に、同じ支払いがもう入っていないかを知らせます。
+   入力のたびに描き直すプレビューの中に置くので、金額を打ち終えた時点で分かります */
+function similarHtml(f) {
+  var hits = similarTo(f, UI.editId);
+  if (!hits.length) return "";
+  return '<div class="notice warn" style="margin-top:12px"><span class="txt">似た記録がすでにあります：' +
+    hits.slice(0, 2).map(function (e) {
+      return esc(jpDate(e.date) + " " + (e.title || "（無題）") + " " + yen(e.amount) +
+        "（" + S.names[e.payer] + "）");
+    }).join("、") + (hits.length > 2 ? " ほか" + (hits.length - 2) + "件" : "") +
+    '。同じ支払いを二重に記録していないか、ご確認ください。</span></div>';
+}
+
+/* 追加のときは、前回選んだ人で固定して見せます。
+   毎回ふたつのボタンから選ぶと、押し間違えたまま記録してしまうためです。
+   変えるときだけ「変える」を押して選び直します。編集では従来どおり選べます */
+function payerHtml(f, adding) {
+  var h = '<div><span class="label">立て替えた人</span>';
+  if (adding && S.me && !UI.payerOpen) {
+    return h + '<div class="payerlock"><span class="who">' + esc(S.names[f.payer]) + '</span>' +
+      '<button type="button" class="toggle-link" data-act="openPayer">変える</button></div></div>';
+  }
+  return h + seg("payer", [{ value: "A", label: S.names.A }, { value: "B", label: S.names.B }], f.payer) +
+    (adding ? '<span class="hint">選んだ人は、この端末で次からも自動で入ります。</span>' : '') + '</div>';
+}
+
+function formHtml(f, adding) {
   return '<div class="stack">' +
     field("何に使いましたか？", input("title", f.title, { placeholder: "スーパー、ドラッグストア など" })) +
     '<div class="grid2">' +
       field("金額", input("amount", f.amount, { inputmode: "numeric", prefix: "¥", placeholder: "4,000" })) +
       field("日付", input("date", f.date, { type: "date" })) +
     '</div>' +
-    '<div><span class="label">立て替えた人</span>' +
-      seg("payer", [{ value: "A", label: S.names.A }, { value: "B", label: S.names.B }], f.payer) + '</div>' +
+    payerHtml(f, adding) +
     '<div><span class="label">支払手段</span><div class="chips">' +
       METHODS.map(function (m) {
         return '<button type="button" class="chip' + (f.method === m ? ' on' : '') + '" data-method="' + esc(m) + '">' +
@@ -1192,6 +1283,12 @@ function homeHtml() {
   }
 
   var m = curMonth(), p = curPayer(), lbl = scopeLabel(m, p);
+  var dups = dupPairs();
+  if (dups.length) {
+    h += '<div class="notice warn"><span class="txt">金額と日付が近い記録が ' + dups.length +
+      ' 組あります。重複していないか確認してください。</span>' +
+      btn("確認する", { variant: "secondary", size: "sm", action: "goDups" }) + '</div>';
+  }
   h += pickRowHtml(all, m, p) + '<div style="height:18px"></div>';
 
   var shown = all.filter(function (r) {
@@ -1218,6 +1315,41 @@ function homeHtml() {
     return '<div class="card' + (r.settled ? ' settled' : '') + '" style="padding:14px">' + entryHtml(r) + '</div>';
   }).join("") + '</div>';
   return h;
+}
+
+function dupSideHtml(r) {
+  var src = r.source === "paypay" ? "PayPay取込" : "手入力";
+  return '<div class="pair"><div class="entry">' + catIcon(r.method, true) +
+    '<div class="body"><div class="title">' + esc(r.title || "（無題）") + '</div>' +
+    '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span>' +
+    '<span>' + esc(S.names[r.payer] + "・" + src) + '</span></div></div>' +
+    '<div class="right"><div class="amt num">' + yen(r.amount) + '</div></div></div>' +
+    '<div class="acts" style="border-top:none;padding-top:0">' +
+    (r.settled ? '<span class="badge">精算済み</span>' : '') +
+    '<span class="spacer"></span>' +
+    '<button data-act="askDel" data-id="' + r.id + '" class="danger">' + icon("trash", 16) + 'これを削除</button>' +
+    '</div></div>';
+}
+
+function dupsHtml() {
+  var pairs = dupPairs();
+  var h = '<div class="stack" style="gap:14px">' +
+    '<div><h2 class="sect">重複していないか確認する</h2>' +
+    '<p class="muted" style="margin:0">金額の差が2%以内（少なくとも10円まで）で、日付が' + DUP_DAYS +
+    '日以内の記録を組にして出しています。両方とも精算済みの組は出しません。</p></div>';
+  if (!pairs.length) {
+    h += '<p class="muted" style="text-align:center;padding:32px 0">似た記録は見つかりませんでした。</p>';
+  } else {
+    h += pairs.map(function (p) {
+      return '<div class="card dupcard" style="padding:14px">' +
+        (p.exact ? '<div style="margin-bottom:10px"><span class="badge">金額も日付も同じ</span></div>' : '') +
+        dupSideHtml(p.a) + dupSideHtml(p.b) +
+        '<div class="acts"><span class="spacer"></span>' +
+        '<button data-act="notDup" data-id="' + esc(p.key) + '">' + icon("check", 16) + '重複ではない</button></div>' +
+        '</div>';
+    }).join("");
+  }
+  return h + btn("記録の一覧に戻る", { block: true, variant: "quiet", action: "goHome" }) + '</div>';
 }
 
 function importHtml() {
@@ -1344,6 +1476,8 @@ function guideHtml() {
     '<p><b>追加</b>タブで、使った先と金額、日付、立て替えた人、支払手段を入れます。' +
     '入力していくと画面の下に折半の結果が出るので、その場で確かめられます。</p>' +
     '<p>記録したあとも日付・立替者・支払手段はそのまま残るので、同じ日の買い物を続けて入れるときは金額と内容だけで足ります。</p>' +
+    '<p>立て替えた人は、一度選ぶとこの端末で覚えておき、次からは固定で表示されます。ほかの人の分を入れるときだけ<b>変える</b>を押してください。</p>' +
+    '<p>金額と日付が近い記録がすでにあると、記録する前に知らせます。あとからまとめて見るときは、一覧の上の知らせか、設定の<b>重複の確認</b>から開けます。</p>' +
     '<div class="note info">まちがえて記録しても、一覧の<b>編集</b>からいつでも直せます。</div>');
 
   /* 3. 個人分 */
@@ -1492,6 +1626,11 @@ function settingsHtml() {
           : S.sync.lastOk
             ? esc(whenLabel(new Date(S.sync.lastOk).toISOString()) + " に同期しました。")
           : S.sync.on ? "まだ一度も同期できていません。" : "同期は止まっています。") + '</div>') +
+    '</div></section>';
+
+  h += '<section><h2 class="sect">重複の確認</h2><div class="card" style="display:grid;gap:12px">' +
+    '<p class="muted" style="margin:0">金額と日付が近い記録を並べて、二重に記録していないかを確かめられます。</p>' +
+    btn("似た記録を探す", { block: true, variant: "secondary", action: "goDups", icon: "list" }) +
     '</div></section>';
 
   h += '<section><h2 class="sect">控えを残す</h2><div class="card" style="display:grid;gap:12px">' +
@@ -1732,9 +1871,10 @@ function render() {
 
   h += '<main>';
   if (UI.tab === "home") h += homeHtml();
-  else if (UI.tab === "add") h += '<div class="stack" style="gap:20px">' + formHtml(UI.form || (UI.form = blankForm())) +
+  else if (UI.tab === "add") h += '<div class="stack" style="gap:20px">' + formHtml(UI.form || (UI.form = blankForm()), true) +
     btn("記録する", { block: true, size: "lg", action: "add" }) + '</div>';
   else if (UI.tab === "paste") h += importHtml();
+  else if (UI.tab === "dups") h += dupsHtml();
   else if (UI.tab === "guide") h += guideHtml();
   else h += settingsHtml();
   h += '</main>';
@@ -1786,9 +1926,11 @@ document.addEventListener("click", function (ev) {
   if (!t) return;
 
   if (t.dataset.tab) {
-    UI.tab = t.dataset.tab; UI.formError = "";
+    UI.tab = t.dataset.tab; UI.formError = ""; UI.payerOpen = false;
+    // 編集中の中身を持ったまま「追加」を開くと、その記録の内容が入ってしまうため捨てます
+    if (UI.tab !== "home" && UI.editId) { UI.editId = null; UI.form = null; }
     if (UI.tab === "add" && !UI.form) UI.form = blankForm();
-    if (UI.tab !== "home") { UI.editId = null; }
+    if (UI.tab === "paste" && S.me && !UI.parsed) UI.importPayer = S.me;
     render();
     window.scrollTo(0, 0);
     return;
@@ -1798,7 +1940,12 @@ document.addEventListener("click", function (ev) {
 
   if (t.dataset.seg) {
     var v = t.dataset.value, n = t.dataset.seg;
-    if (n === "payer") { UI.form.payer = v; render(); }
+    if (n === "payer") {
+      UI.form.payer = v;
+      // 追加のときに選んだ人は、この端末で覚えておきます
+      if (UI.tab === "add") { S.me = v; UI.payerOpen = false; persistOnly(); }
+      render();
+    }
     else if (n === "filter") { UI.filter = v; render(); }
     else if (n === "scope") { UI.scope = v; render(); }
     else if (n === "importPayer") { UI.importPayer = v; render(); }
@@ -1809,6 +1956,16 @@ document.addEventListener("click", function (ev) {
   switch (t.dataset.act) {
     case "goAdd": UI.tab = "add"; UI.form = blankForm(); render(); break;
     case "goGuide": UI.tab = "guide"; render(); window.scrollTo(0, 0); break;
+    case "goDups":
+      if (UI.editId) { UI.editId = null; UI.form = null; }
+      UI.tab = "dups"; render(); window.scrollTo(0, 0); break;
+    case "goHome": UI.tab = "home"; render(); window.scrollTo(0, 0); break;
+    case "openPayer": UI.payerOpen = true; render(); break;
+    case "notDup":
+      if (S.notDup.indexOf(id) < 0) S.notDup = S.notDup.concat([id]);
+      UI.notice = "この組は、今後は出しません";
+      persistOnly(); render();
+      break;
     case "closeNotice": UI.notice = ""; render(); break;
     case "dismissBanner": UI.bannerOff = S.book.pending; UI.justSettled = false; render(); break;
     case "retry": persist(); render(); break;
@@ -1880,9 +2037,11 @@ document.addEventListener("click", function (ev) {
       var keep = { date: UI.form.date, payer: UI.form.payer, method: UI.form.method };
       var e = Object.assign({ id: uid() }, fromForm(UI.form),
         { settled: false, settledOn: "", txnId: "", source: "manual", updatedAt: Date.now() });
+      S.me = e.payer;
       change(function () { S.entries = [e].concat(S.entries); });
       UI.form = Object.assign(blankForm(), keep);
-      UI.formError = ""; UI.notice = "記録しました"; UI.tab = "home"; render();
+      // 誰の立て替えにしたかを言葉でも返し、選び違いに気づけるようにします
+      UI.formError = ""; UI.notice = S.names[e.payer] + "の立て替えとして記録しました"; UI.tab = "home"; render();
       break;
     }
 
@@ -2066,7 +2225,10 @@ Store.load().then(function (d) {
     if (d.sync) S.sync = Object.assign(S.sync, d.sync);
     if (d.namesUpdatedAt) S.namesUpdatedAt = d.namesUpdatedAt;
     if (Array.isArray(d.trash)) S.trash = d.trash;
+    if (d.me === "A" || d.me === "B") S.me = d.me;
+    if (Array.isArray(d.notDup)) S.notDup = d.notDup;
   }
+  UI.importPayer = S.me || "A";
   // 招待リンクがあれば取り込む。
   // ただし、すでに記録や別の接続先がある場合は必ず確認する。
   // 細工したリンクを踏ませて、手元の記録を他人のサーバーへ
