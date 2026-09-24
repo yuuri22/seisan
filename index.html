@@ -192,6 +192,15 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
   display:block;width:100%;max-height:62vh;object-fit:contain;margin:12px 0 16px;
   border-radius:var(--radius-md);background:var(--surface-sunken);
 }
+/* レシートがある印。記録名の右に置き、行の高さを増やさない。
+   名前が長いときは名前のほうを縮め、印は必ず見えるようにする */
+.entry .tline{display:flex;align-items:center;gap:6px;min-width:0}
+.entry .tline .title{min-width:0}
+.rcmark{
+  flex:none;display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;margin:-4px 0;padding:0;border:none;border-radius:8px;
+  background:var(--brand-soft);color:var(--brand-strong);cursor:pointer;
+}
 .dupcard .pair + .pair{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border-subtle)}
 .inset > .ttl{
   display:block;font-size:14px;font-weight:700;
@@ -251,6 +260,7 @@ main{padding:24px var(--screen-pad) 0}
 .entry .sub{
   display:flex;gap:6px;margin-top:3px;font-size:13px;color:var(--text-tertiary);
   white-space:nowrap;                      /* 日付も立替も折り返さない */
+  overflow:hidden;                         /* 右の金額の下へ潜り込ませない */
 }
 /* 日付は「1月1日」〜「12月31日」で幅がほぼ一定。
    最大幅ぶんを先に確保して、カードをまたいで縦に揃える */
@@ -261,7 +271,8 @@ main{padding:24px var(--screen-pad) 0}
 .personal{margin-top:10px;padding:8px 12px;border-radius:var(--radius-md);background:var(--warning-50);
   font-size:12px;font-weight:600;color:var(--warning-ink);line-height:var(--lh-normal)}
 .acts{display:flex;gap:16px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)}
-.acts button{display:inline-flex;align-items:center;gap:5px;border:none;background:transparent;
+/* ボタンの文字は折り返さない。幅が足りないと「編/集」のように縦に割れるため */
+.acts button{display:inline-flex;align-items:center;gap:5px;border:none;background:transparent;flex:none;white-space:nowrap;
   padding:8px 4px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-radius:var(--radius-sm)}
 .acts .spacer{flex:1}
 .acts .danger{color:var(--danger-500)}
@@ -1471,9 +1482,13 @@ function formHtml(f, adding) {
 function entryHtml(r) {
   var dir = r.balance > 0 ? S.names.B + " → " + S.names.A : S.names.A + " → " + S.names.B;
   var h = '<div class="entry">' + catIcon(r.method) +
-    '<div class="body"><div class="title">' + esc(r.title) + '</div>' +
+    '<div class="body"><div class="tline"><div class="title">' + esc(r.title) + '</div>' +
+    (S.receipts[r.id]
+      ? '<button type="button" class="rcmark" data-act="viewRc" data-id="' + r.id + '"' +
+        ' aria-label="レシートを見る" title="レシートを見る">' + icon("receipt", 16) + '</button>'
+      : '') + '</div>' +
     '<div class="sub"><span class="date num">' + esc(jpDate(r.date)) + '</span>' +
-    (r.source === "fixed" ? '<span>毎月の固定費</span>' : '') + '</div></div>' +
+    '</div></div>' +
     '<div class="right"><div class="amt num">' + yen(r.amount) + '</div>' +
     '<div class="bal num"' + (r.balance === 0 ? ' style="color:var(--text-tertiary)"' : '') + '>' +
     (r.balance === 0 ? "—" : esc(yen(Math.abs(r.balance)) + " " + dir)) + '</div></div></div>';
@@ -1485,19 +1500,19 @@ function entryHtml(r) {
     h += '<div class="personal">' + esc(parts.join(" / ")) + '</div>';
   }
   if (r.note) h += '<div class="memo">' + esc(r.note) + '</div>';
+  // 日付の横は右の金額と取り合いになり、狭い画面では欠けるため、札はここにまとめます
+  var tags = [];
+  if (r.source === "fixed") tags.push('<span class="badge">毎月の固定費</span>');
   if (r.settled) {
-    h += '<div style="margin-top:10px"><span class="badge">精算済み' +
-      (r.settledOn ? " " + esc(jpDate(r.settledOn)) : "") + '</span></div>';
+    tags.push('<span class="badge">精算済み' + (r.settledOn ? " " + esc(jpDate(r.settledOn)) : "") + '</span>');
   }
+  if (tags.length) h += '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">' + tags.join("") + '</div>';
   // 削除も精算済みも、確認のダイアログを経由します。
   // カードの中で確認を出すと、押した指の下で内容が入れ替わるためです
   h += '<div class="acts">' +
     '<button data-act="edit" data-id="' + r.id + '">' + icon("pencil", 16) + '編集</button>' +
     '<button data-act="toggle" data-id="' + r.id + '" class="' + (r.settled ? '' : 'brand') + '">' +
     icon(r.settled ? "undo" : "check", 16) + (r.settled ? "未精算" : "精算済み") + '</button>' +
-    (S.receipts[r.id]
-      ? '<button data-act="viewRc" data-id="' + r.id + '">' + icon("receipt", 16) + 'レシート</button>'
-      : '') +
     '<span class="spacer"></span>' +
     '<button data-act="askDel" data-id="' + r.id + '" class="danger">' + icon("trash", 16) + '削除</button>' +
     '</div>';
