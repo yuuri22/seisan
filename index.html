@@ -1546,7 +1546,7 @@ function pickRowHtml(all, m, p) {
         esc(S.names[k]) + '</option>';
     }).join("");
 
-  return '<div style="height:12px"></div><div class="picks">' +
+  return '<div class="picks" style="margin-bottom:12px">' +
     pickHtml("month", "月で絞り込む", mOpts, !!m) +
     pickHtml("payer", "立て替えた人で絞り込む", pOpts, !!p) +
     '</div>';
@@ -1577,7 +1577,7 @@ function homeHtml() {
       ' 組あります。重複していないか確認してください。</span>' +
       btn("確認する", { variant: "secondary", size: "sm", action: "goDups" }) + '</div>';
   }
-  h += pickRowHtml(all, m, p) + '<div style="height:18px"></div>';
+  h += '<div style="height:18px"></div>';
 
   var shown = all.filter(function (r) {
     if (UI.filter === "未精算" && r.settled) return false;
@@ -1826,7 +1826,7 @@ function guideHtml() {
   h += card("精算する",
     '<p>いちばん上のカードに、どちらがいくら返せばよいかが出ています。' +
     '実際に送金や手渡しを済ませてから<b>精算する</b>を押してください。押す前に確認のダイアログが出ます。</p>' +
-    '<p>記録の一覧で月や人を選んでいれば、<b>いま画面に出ている分だけ</b>精算できます。どちらも「すべて」のときは、未精算の記録がすべて精算済みになります。</p>' +
+    '<p>画面の上で月や人を選んでいれば、<b>いま画面に出ている分だけ</b>精算できます。どちらも「すべて」のときは、未精算の記録がすべて精算済みになります。</p>' +
     '<p>1件だけ精算したいときは、その記録の<b>精算済み</b>から個別に切り替えられます。<b>未精算</b>でもとに戻せます。</p>' +
     '<div class="note warn">このアプリはお金を動かしません。送金はPayPayや銀行アプリで行い、そのあとにこのボタンを押す、という順番です。</div>');
 
@@ -2151,7 +2151,11 @@ function render() {
     return;
   }
 
-  h += '<section class="hero"><div class="gradcard">' +
+  // 月と人の絞り込みは、カードの上に置きます。
+  // カードの金額と「精算する」の範囲はこれで決まるので、
+  // 選ぶ → 金額を見る → 精算する、が上から順に並ぶようにします
+  h += '<section class="hero">' + (UI.tab === "home" ? pickRowHtml(all, sm, sp) : '') +
+    '<div class="gradcard">' +
     '<div class="overline">' + esc(slbl ? slbl + "の精算額" : "いまの貸し借り") + '</div>';
   if (net === 0) {
     h += '<div style="margin-top:10px;font-size:28px;font-weight:800;letter-spacing:var(--ls-tight)">貸し借りなし</div>';
@@ -2179,7 +2183,7 @@ function render() {
   // 追加や設定の画面にも出していたため、
   // 別の操作をしている最中に誤って押せてしまっていました
   if (UI.tab === "home") {
-    // 精算する範囲は、下で選んでいる絞り込みに合わせます。
+    // 精算する範囲は、上で選んでいる絞り込みに合わせます。
     // 一覧に出ているものがそのまま対象、という一つの決まりにします
     var tgt = scoped;
     h +='<div style="margin-top:16px">' +
