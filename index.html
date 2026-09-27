@@ -1784,7 +1784,7 @@ function guideHtml() {
     '<div class="step"><span class="dot">1</span><span>買い物をしたら、<b>追加</b>から1件ずつ記録します。現金やクレジットカードで払った分が対象です。</span></div>' +
     '<div class="step"><span class="dot">2</span><span>PayPayで払った分は毎回入れなくて構いません。月末に<b>取込</b>でCSVからまとめて入れられます。</span></div>' +
     '<div class="step"><span class="dot">3</span><span>画面のいちばん上に、いまの貸し借りが出ます。どちらがいくら返せばよいかがひと目で分かります。</span></div>' +
-    '<div class="step"><span class="dot">4</span><span>実際に送金したら<b>精算する</b>を押します。月を選んでいれば、その月の分だけ精算できます。</span></div>' +
+    '<div class="step"><span class="dot">4</span><span>実際に送金したら<b>精算する</b>を押します。月を選んでいれば、上のカードにその月の精算額が出て、その月の分だけ精算できます。</span></div>' +
     '<div class="step"><span class="dot">5</span><span>精算のあと、<b>設定</b>から控えをスプレッドシートに残しておきます。</span></div>' +
     '</div>');
 
@@ -1867,7 +1867,7 @@ function guideHtml() {
 
   /* 9. 困ったとき */
   h += card("困ったとき",
-    '<div class="kv"><span class="k">数字が合わない</span><span class="v">一覧が「未精算」や、特定の月・人で絞り込まれていないか確かめてください。「すべて」「すべての月」「すべての人」に戻すと、全部まとめて見られます。</span></div>' +
+    '<div class="kv"><span class="k">数字が合わない</span><span class="v">一覧が「未精算」や、特定の月・人で絞り込まれていないか確かめてください。上のカードも、月や人を選んでいるときはその範囲だけの金額になります。「すべて」「すべての月」「すべての人」に戻すと、全部まとめて見られます。</span></div>' +
     '<div class="kv"><span class="k">店名が文字化け</span><span class="v">CSVを読み込み直してみてください。文字コードは自動で判別しますが、まれに外すことがあります。</span></div>' +
     '<div class="kv"><span class="k">取り込めない</span><span class="v">PayPayのCSVを、見出しの行を含めたまま使ってください。加工したファイルだと列を読み取れないことがあります。</span></div>' +
     '<div class="kv"><span class="k">コピーできない</span><span class="v">自動コピーが使えない環境では、代わりに文字の入った枠が出ます。全選択してコピーしてください。</span></div>' +
@@ -1878,7 +1878,7 @@ function guideHtml() {
     '<div class="kv"><span class="k">共通分</span><span class="v">合計から個人分を引いた、ふたりで分ける金額です。</span></div>' +
     '<div class="kv"><span class="k">負担</span><span class="v">その1件で、それぞれが実際に負うべき金額です。</span></div>' +
     '<div class="kv"><span class="k">貸し借り</span><span class="v">立て替えた額と負担額の差です。まだ返していない分を指します。</span></div>' +
-    '<div class="kv"><span class="k">未精算</span><span class="v">まだ送金が済んでいない記録です。上のカードの金額は、この分だけを集計しています。</span></div>');
+    '<div class="kv"><span class="k">未精算</span><span class="v">まだ送金が済んでいない記録です。上のカードの金額は、この分だけを集計しています。月や人を選んでいるときは、さらにその範囲だけです。</span></div>');
 
   h += '</div>';
   return h;
@@ -2098,8 +2098,15 @@ function render() {
 
   var all = rows();
   var unsettled = all.filter(function (r) { return !r.settled; });
-  var net = unsettled.reduce(function (s, r) { return s + r.balance; }, 0);
-  var total = unsettled.reduce(function (s, r) { return s + Math.abs(r.balance); }, 0) || 1;
+  // 一覧で月や人を選んでいるときは、カードもその範囲だけを集計します。
+  // カードの金額と「精算する」で精算される金額を、いつも同じにするためです。
+  // 追加や設定の画面では絞り込みが見えないので、全期間のままにします
+  var sm = UI.tab === "home" ? curMonth() : "", sp = UI.tab === "home" ? curPayer() : "";
+  var slbl = scopeLabel(sm, sp);
+  var scoped = unsettled.filter(function (r) { return inScope(r, sm, sp); });
+  var allNet = unsettled.reduce(function (s, r) { return s + r.balance; }, 0);
+  var net = scoped.reduce(function (s, r) { return s + r.balance; }, 0);
+  var total = scoped.reduce(function (s, r) { return s + Math.abs(r.balance); }, 0) || 1;
   var pct = 50 + (net > 0 ? 1 : -1) * Math.min(1, Math.abs(net) / total) * 45;
   var owedBy = net > 0 ? S.names.B : S.names.A;
   var owedTo = net > 0 ? S.names.A : S.names.B;
@@ -2145,7 +2152,7 @@ function render() {
   }
 
   h += '<section class="hero"><div class="gradcard">' +
-    '<div class="overline">いまの貸し借り</div>';
+    '<div class="overline">' + esc(slbl ? slbl + "の精算額" : "いまの貸し借り") + '</div>';
   if (net === 0) {
     h += '<div style="margin-top:10px;font-size:28px;font-weight:800;letter-spacing:var(--ls-tight)">貸し借りなし</div>';
   } else {
@@ -2153,6 +2160,15 @@ function render() {
       '<span style="display:inline-flex;color:rgba(255,255,255,.7)">' + icon("arrow", 18, 2.4) + '</span>' +
       '<span>' + esc(owedTo) + '</span></div>' +
       '<div style="margin-top:4px">' + money(Math.abs(net), 42) + '</div>';
+  }
+  // 範囲の外にも未精算が残っているときは、全期間の合計も添えます。
+  // 見出しの金額だけだと、全部でいくらなのかが分からなくなるためです
+  if (scoped.length < unsettled.length) {
+    h += '<div class="num" style="margin-top:6px;font-size:13px;color:rgba(255,255,255,.8)">' +
+      (allNet === 0 ? "全期間では貸し借りなし"
+        : esc("全期間の未精算　" + yen(Math.abs(allNet)) + "（" +
+            (allNet > 0 ? S.names.B + " → " + S.names.A : S.names.A + " → " + S.names.B) + "）")) +
+      '</div>';
   }
   h += '<div class="meter"><div class="track"><span class="mid"></span>' +
     '<span class="knob" style="left:calc(' + pct + '% - 8px)"></span></div>' +
@@ -2165,9 +2181,8 @@ function render() {
   if (UI.tab === "home") {
     // 精算する範囲は、下で選んでいる絞り込みに合わせます。
     // 一覧に出ているものがそのまま対象、という一つの決まりにします
-    var sm = curMonth(), sp = curPayer(), slbl = scopeLabel(sm, sp);
-    var tgt = unsettled.filter(function (r) { return inScope(r, sm, sp); });
-    h += '<div style="margin-top:16px">' +
+    var tgt = scoped;
+    h +='<div style="margin-top:16px">' +
       btn("精算する", { block: true, icon: "check", action: "settle", disabled: !tgt.length }) + '</div>' +
       '<p class="muted" style="margin:10px 2px 0">' +
       (tgt.length
