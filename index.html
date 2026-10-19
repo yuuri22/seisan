@@ -150,6 +150,10 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
   border-radius:var(--radius-pill);cursor:pointer;transition:all var(--dur-fast) var(--ease-standard);
 }
 .chip.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-strong)}
+/* 店名の候補。入力欄のすぐ下に、小さめのチップで並べます */
+.suggest{margin-top:8px}
+.suggest .chip{height:34px;padding:0 12px;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suggest:empty{display:none}
 
 .card{background:var(--surface-card);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:16px}
 .card.md{box-shadow:var(--shadow-md)}
@@ -1441,10 +1445,37 @@ function payerHtml(f, adding) {
     (adding ? '<span class="hint">選んだ人は、この端末で次からも自動で入ります。</span>' : '') + '</div>';
 }
 
+/* 3回以上記録した店名を、よく使う順に候補として出します。
+   固定費が自動で入れた記録は数えません（毎月かならず増えるため） */
+var SUGGEST_MIN = 3;
+function shopNames() {
+  var count = {}, last = {};
+  S.entries.forEach(function (e) {
+    if (String(e.id).indexOf("fx-") === 0) return;
+    var t = (e.title || "").trim();
+    if (!t) return;
+    count[t] = (count[t] || 0) + 1;
+    if (!last[t] || e.date > last[t]) last[t] = e.date;
+  });
+  return Object.keys(count).filter(function (t) { return count[t] >= SUGGEST_MIN; })
+    .sort(function (a, b) { return count[b] - count[a] || (last[a] < last[b] ? 1 : -1); });
+}
+/* 打ちかけの文字を含む名前だけに絞ります。打ち終えた名前と同じなら出しません */
+function suggestHtml(f) {
+  if (f.fixed) return '<div id="suggest"></div>';
+  var q = (f.title || "").trim();
+  var hits = shopNames().filter(function (t) { return t !== q && t.indexOf(q) >= 0; }).slice(0, 6);
+  if (!hits.length) return '<div id="suggest"></div>';
+  return '<div id="suggest" class="chips suggest">' + hits.map(function (t) {
+    return '<button type="button" class="chip" data-suggest="' + esc(t) + '">' + esc(t) + '</button>';
+  }).join("") + '</div>';
+}
+
 function formHtml(f, adding) {
   return '<div class="stack">' +
-    field("何に使いましたか？", input("title", f.title,
+    '<div>' + field("何に使いましたか？", input("title", f.title,
       { placeholder: f.fixed ? "家賃、光熱費 など" : "スーパー、ドラッグストア など" })) +
+      suggestHtml(f) + '</div>' +
     '<div class="grid2">' +
       field("金額", input("amount", f.amount, { inputmode: "numeric", prefix: "¥", placeholder: f.fixed ? "80,000" : "4,000" })) +
       (f.fixed
@@ -2274,6 +2305,15 @@ function repaintPreview() {
     el.replaceWith(tmp.firstChild);
   }
 }
+function repaintSuggest() {
+  var el = document.getElementById("suggest");
+  var f = activeForm();
+  if (el && f) {
+    var tmp = document.createElement("div");
+    tmp.innerHTML = suggestHtml(f);
+    el.replaceWith(tmp.firstChild);
+  }
+}
 
 /* ── 操作 ────────────────────────────────────────────────── */
 document.addEventListener("click", function (ev) {
@@ -2282,8 +2322,15 @@ document.addEventListener("click", function (ev) {
     if (picker) picker.click();
     return;
   }
-  var t = ev.target.closest("[data-tab],[data-act],[data-seg],[data-method]");
+  var t = ev.target.closest("[data-tab],[data-act],[data-seg],[data-method],[data-suggest]");
   if (!t) return;
+
+  if (t.dataset.suggest) {
+    activeForm().title = t.dataset.suggest; UI.formError = ""; render();
+    var amt = document.querySelector('[data-input="amount"]');
+    if (amt && !amt.value) amt.focus();
+    return;
+  }
 
   if (t.dataset.tab) {
     UI.tab = t.dataset.tab; UI.formError = ""; UI.payerOpen = false;
@@ -2576,7 +2623,7 @@ document.addEventListener("input", function (ev) {
       return;
     }
     var af = activeForm();
-    if (af) { af[n] = el.value; repaintPreview(); }
+    if (af) { af[n] = el.value; repaintPreview(); if (n === "title") repaintSuggest(); }
     return;
   }
   if (el.dataset && el.dataset.flip) {
