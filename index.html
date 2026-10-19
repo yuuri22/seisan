@@ -154,6 +154,10 @@ textarea.ta:focus{border-color:var(--brand);box-shadow:var(--shadow-focus)}
 .suggest{margin-top:8px}
 .suggest .chip{height:34px;padding:0 12px;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .suggest:empty{display:none}
+/* 個人分の1品目。金額は短く、中身を広く取ります */
+.prow{display:grid;grid-template-columns:7.5em 1fr auto;gap:8px;align-items:center}
+.prow .xclose{margin:0}
+.prow-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
 
 .card{background:var(--surface-card);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:16px}
 .card.md{box-shadow:var(--shadow-md)}
@@ -1304,23 +1308,55 @@ function copyInvite() {
 }
 
 /* ── フォーム ────────────────────────────────────────────── */
+
+/* 個人分は、品目ごとに欄を足して入れられます。
+   同期の表は「金額」と「中身」の1組のままなので、2品目以上のときは
+   中身を「化粧品 ¥500、雑誌 ¥300」の形にまとめて保存し、開くときに分け直します。
+   こうしておけば表を変えずに済み、古い版の端末でもそのまま文章として読めます */
+function splitPersonal(total, note) {
+  total = Number(total) || 0; note = String(note || "");
+  var items = [], sum = 0;
+  note.split("、").forEach(function (part) {
+    var m = items && /^(.*) ¥([\d,]+)$/.exec(part);
+    if (!m) { items = null; return; }
+    var amt = Number(m[2].replace(/,/g, ""));
+    items.push({ amt: String(amt), note: m[1] }); sum += amt;
+  });
+  if (items && items.length > 1 && sum === total) return items;
+  return [{ amt: total ? String(total) : "", note: note }];
+}
+function joinPersonal(items) {
+  var used = items.filter(function (it) { return Number(it.amt) || String(it.note).trim(); });
+  var total = used.reduce(function (s, it) { return s + (Number(it.amt) || 0); }, 0);
+  if (used.length <= 1) return { total: total, note: used.length ? String(used[0].note).trim() : "" };
+  // 区切りに使う「、」が中身に入っていると分け直せなくなるため、置き換えます
+  return { total: total, note: used.map(function (it) {
+    return String(it.note).trim().replace(/、/g, "・") + " ¥" + (Number(it.amt) || 0);
+  }).join("、") };
+}
+
 function blankForm() {
+  UI.itemAt = null;
   return { date: today(), title: "", amount: "", payer: S.me || "A", method: "現金", note: "",
-    aPersonal: "", aPersonalNote: "", bPersonal: "", bPersonalNote: "" };
+    aItems: [{ amt: "", note: "" }], bItems: [{ amt: "", note: "" }] };
 }
 function toForm(e) {
+  UI.itemAt = null;
   return { date: e.date, title: e.title, amount: String(e.amount), payer: e.payer, method: e.method || "現金",
     note: e.note || "",
-    aPersonal: e.aPersonal ? String(e.aPersonal) : "", aPersonalNote: e.aPersonalNote || "",
-    bPersonal: e.bPersonal ? String(e.bPersonal) : "", bPersonalNote: e.bPersonalNote || "" };
+    aItems: splitPersonal(e.aPersonal, e.aPersonalNote),
+    bItems: splitPersonal(e.bPersonal, e.bPersonalNote) };
 }
 function validate(f) {
   if (!f.title.trim()) return "何に使ったかを入れてください。";
   var amount = Number(f.amount);
   if (!amount || amount <= 0) return "金額を入れてください。";
-  var ap = Number(f.aPersonal) || 0, bp = Number(f.bPersonal) || 0;
-  if (ap < 0 || bp < 0) return "個人分にマイナスは入れられません。";
-  if (ap + bp > amount) return "個人分の合計が金額を超えています。";
+  var bad = f.aItems.concat(f.bItems).some(function (it) { return isNaN(Number(it.amt)) || Number(it.amt) < 0; });
+  if (bad) return "個人分は 0 以上の数字で入れてください。";
+  if (joinPersonal(f.aItems).total + joinPersonal(f.bItems).total > amount) return "個人分の合計が金額を超えています。";
+  // 同期の表は中身を200文字までしか持てず、超えた分は切れて品目に分け直せなくなります
+  if (joinPersonal(f.aItems).note.length > 200 || joinPersonal(f.bItems).note.length > 200)
+    return "個人分の中身が長すぎます。品目をまとめるか、短く書いてください。";
   return "";
 }
 function fixedError(f) {
@@ -1339,10 +1375,11 @@ function fixedFromForm(f) {
   return e;
 }
 function fromForm(f) {
+  var ap = joinPersonal(f.aItems), bp = joinPersonal(f.bItems);
   return { date: f.date, title: f.title.trim(), amount: Number(f.amount), payer: f.payer, method: f.method,
     note: String(f.note || "").trim(),
-    aPersonal: Number(f.aPersonal) || 0, aPersonalNote: f.aPersonalNote.trim(),
-    bPersonal: Number(f.bPersonal) || 0, bPersonalNote: f.bPersonalNote.trim() };
+    aPersonal: ap.total, aPersonalNote: ap.note,
+    bPersonal: bp.total, bPersonalNote: bp.note };
 }
 
 /* ── 部品のHTML ──────────────────────────────────────────── */
@@ -1396,8 +1433,8 @@ function btn(label, opts) {
 
 /* ── 画面 ────────────────────────────────────────────────── */
 function previewHtml(f) {
-  var r = calc({ amount: Number(f.amount) || 0, aPersonal: Number(f.aPersonal) || 0,
-    bPersonal: Number(f.bPersonal) || 0, payer: f.payer });
+  var r = calc({ amount: Number(f.amount) || 0, aPersonal: joinPersonal(f.aItems).total,
+    bPersonal: joinPersonal(f.bItems).total, payer: f.payer });
   if (!r.amount) return '<div id="preview"></div>';
   var dir = r.balance === 0 ? "—" :
     yen(Math.abs(r.balance)) + " " + (r.balance > 0 ? S.names.B + "→" + S.names.A : S.names.A + "→" + S.names.B);
@@ -1471,6 +1508,69 @@ function suggestHtml(f) {
   }).join("") + '</div>';
 }
 
+/* 個人分の中身も、その人が3回以上入れたものを候補に出します。
+   人ごとに数えるのは、ふたりで買うものが違うためです */
+function itemNames(side) {
+  var count = {};
+  S.entries.forEach(function (e) {
+    if (String(e.id).indexOf("fx-") === 0) return;
+    splitPersonal(e[side + "Personal"], e[side + "PersonalNote"]).forEach(function (it) {
+      var t = String(it.note).trim();
+      if (t) count[t] = (count[t] || 0) + 1;
+    });
+  });
+  return Object.keys(count).filter(function (t) { return count[t] >= SUGGEST_MIN; })
+    .sort(function (a, b) { return count[b] - count[a]; });
+}
+/* 候補をどの欄に入れるかと、何を出すかを決めます。
+   中身を打ちかけの欄があれば、その文字で絞ってその欄に入れます。
+   絞って何も残らないとき（打ち終えたときなど）は、すべての候補を出し、
+   空いている欄に入れます。空きが無ければ欄を足します（target が -1） */
+function itemPick(f, side) {
+  var items = f[side + "Items"];
+  var have = items.map(function (it) { return String(it.note).trim(); });
+  var all = itemNames(side).filter(function (t) { return have.indexOf(t) < 0; });
+  var at = UI.itemAt && UI.itemAt.side === side && UI.itemAt.i < items.length ? UI.itemAt.i : -1;
+  if (at >= 0 && have[at]) {
+    var hits = all.filter(function (t) { return t.indexOf(have[at]) >= 0; });
+    if (hits.length) return { target: at, hits: hits.slice(0, 6) };
+  }
+  return { target: have.indexOf(""), hits: all.slice(0, 6) };
+}
+function itemSuggestHtml(f, side) {
+  var id = "isuggest-" + side;
+  var hits = itemPick(f, side).hits;
+  if (!hits.length) return '<div id="' + id + '"></div>';
+  return '<div id="' + id + '" class="chips suggest">' + hits.map(function (t) {
+    return '<button type="button" class="chip" data-act="pickItem" data-id="' + side + '" data-note="' + esc(t) + '">' +
+      esc(t) + '</button>';
+  }).join("") + '</div>';
+}
+function itemTotalHtml(f, side) {
+  var items = f[side + "Items"];
+  return '<span class="hint" id="itotal-' + side + '">' +
+    (items.length > 1 ? esc("合計 " + yen(joinPersonal(items).total)) : '') + '</span>';
+}
+function personalHtml(f, side) {
+  var items = f[side + "Items"];
+  var key = side.toUpperCase();
+  return '<div><span class="label">' + esc(S.names[key] + "の個人分") + '</span>' +
+    '<div class="stack" style="gap:8px">' + items.map(function (it, i) {
+      return '<div class="prow">' +
+        input(side + "Items." + i + ".amt", it.amt, { inputmode: "numeric", prefix: "¥", placeholder: "0" }) +
+        input(side + "Items." + i + ".note", it.note, { placeholder: i ? "中身" : (side === "a" ? "化粧品" : "雑誌") }) +
+        (items.length > 1
+          ? '<button type="button" class="xclose" data-act="delItem" data-id="' + side + "." + i + '" aria-label="この品目を消す">' +
+            icon("close", 18) + '</button>'
+          : '') +
+        '</div>';
+    }).join("") + '</div>' +
+    itemSuggestHtml(f, side) +
+    '<div class="prow-foot"><button type="button" class="toggle-link" data-act="addItem" data-id="' + side + '">' +
+      '＋ 品目を追加</button>' + itemTotalHtml(f, side) + '</div>' +
+    '</div>';
+}
+
 function formHtml(f, adding) {
   return '<div class="stack">' +
     '<div>' + field("何に使いましたか？", input("title", f.title,
@@ -1499,12 +1599,7 @@ function formHtml(f, adding) {
     (f.fixed ? '' : receiptFieldHtml(f)) +
     '<div class="inset"><span class="ttl">個人的なものが混ざっていたら</span>' +
       '<p class="muted" style="margin:0 0 14px">その金額を先に引いてから折半します。無ければ空欄のままで大丈夫です。</p>' +
-      '<div class="grid2">' +
-        field(S.names.A + "の個人分", input("aPersonal", f.aPersonal, { inputmode: "numeric", prefix: "¥", placeholder: "0" })) +
-        field("その中身", input("aPersonalNote", f.aPersonalNote, { placeholder: "化粧品" })) +
-        field(S.names.B + "の個人分", input("bPersonal", f.bPersonal, { inputmode: "numeric", prefix: "¥", placeholder: "0" })) +
-        field("その中身", input("bPersonalNote", f.bPersonalNote, { placeholder: "雑誌" })) +
-      '</div></div>' +
+      '<div class="stack">' + personalHtml(f, "a") + personalHtml(f, "b") + '</div></div>' +
     previewHtml(f) +
     (UI.formError ? '<p class="err">' + esc(UI.formError) + '</p>' : '') +
     '</div>';
@@ -2305,6 +2400,17 @@ function repaintPreview() {
     el.replaceWith(tmp.firstChild);
   }
 }
+function repaintItems(side) {
+  var f = activeForm();
+  if (!f) return;
+  [["isuggest-" + side, itemSuggestHtml], ["itotal-" + side, itemTotalHtml]].forEach(function (p) {
+    var el = document.getElementById(p[0]);
+    if (!el) return;
+    var tmp = document.createElement("div");
+    tmp.innerHTML = p[1](f, side);
+    el.replaceWith(tmp.firstChild);
+  });
+}
 function repaintSuggest() {
   var el = document.getElementById("suggest");
   var f = activeForm();
@@ -2424,6 +2530,33 @@ document.addEventListener("click", function (ev) {
       persistOnly(); render();
       break;
     case "closeNotice": UI.notice = ""; render(); break;
+
+    // 個人分の品目を足す・消す・候補から入れる
+    case "addItem": {
+      var addTo = activeForm()[id + "Items"];
+      addTo.push({ amt: "", note: "" });
+      UI.itemAt = { side: id, i: addTo.length - 1 };
+      render();
+      var newBox = document.querySelector('[data-input="' + id + "Items." + (addTo.length - 1) + '.amt"]');
+      if (newBox) newBox.focus();
+      break;
+    }
+    case "delItem": {
+      var dside = id.split(".")[0], di = Number(id.split(".")[1]);
+      activeForm()[dside + "Items"].splice(di, 1);
+      UI.itemAt = null;
+      render(); break;
+    }
+    case "pickItem": {
+      var pf = activeForm(), pi = itemPick(pf, id).target;
+      if (pi < 0) { pf[id + "Items"].push({ amt: "", note: "" }); pi = pf[id + "Items"].length - 1; }
+      pf[id + "Items"][pi].note = t.dataset.note;
+      UI.itemAt = null;
+      render();
+      var amtBox = document.querySelector('[data-input="' + id + "Items." + pi + '.amt"]');
+      if (amtBox && !amtBox.value) amtBox.focus();
+      break;
+    }
     case "dismissBanner": UI.bannerOff = S.book.pending; UI.justSettled = false; render(); break;
     case "retry": persist(); render(); break;
 
@@ -2623,7 +2756,16 @@ document.addEventListener("input", function (ev) {
       return;
     }
     var af = activeForm();
-    if (af) { af[n] = el.value; repaintPreview(); if (n === "title") repaintSuggest(); }
+    if (!af) return;
+    // 個人分の品目は「aItems.0.amt」のような名前で、配列の中を書き換えます
+    var im = /^([ab])Items\.(\d+)\.(amt|note)$/.exec(n);
+    if (im) {
+      af[im[1] + "Items"][Number(im[2])][im[3]] = el.value;
+      if (im[3] === "note") UI.itemAt = { side: im[1], i: Number(im[2]) };
+      repaintPreview(); repaintItems(im[1]);
+      return;
+    }
+    af[n] = el.value; repaintPreview(); if (n === "title") repaintSuggest();
     return;
   }
   if (el.dataset && el.dataset.flip) {
